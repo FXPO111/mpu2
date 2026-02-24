@@ -60,8 +60,8 @@ def create_checkout_session(
     """
     init_stripe(secret_key)
 
-    default_success_url = f"{frontend_url}/dashboard?checkout=success&order_id={order_id}"
-    default_cancel_url = f"{frontend_url}/pricing?checkout=cancelled"
+    default_success_url = f"{frontend_url}/pay/success?order_id={order_id}"
+    default_cancel_url = f"{frontend_url}/pay/cancel"
 
     success_url = (success_url_override or "").strip() or default_success_url
     cancel_url = (cancel_url_override or "").strip() or default_cancel_url
