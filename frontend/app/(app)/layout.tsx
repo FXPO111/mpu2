@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
-import AppLayout from "@/components/layout/AppLayout";
+import AccountMenu from "@/app/_components/AccountMenu";
 
 export default function CabinetLayout({ children }: { children: ReactNode }) {
-  return <AppLayout>{children}</AppLayout>;
+  return (
+    <>
+      <header style={{ padding: 12, borderBottom: "1px solid #ddd", display: "flex", justifyContent: "flex-end" }}>
+        <AccountMenu />
+      </header>
+      {children}
+    </>
+  );
 }
