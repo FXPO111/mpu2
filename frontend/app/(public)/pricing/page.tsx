@@ -1,251 +1,150 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { toPublicApiUrl } from "@/lib/public-api-base";
 
 type PlanKey = "start" | "pro" | "intensive";
+type Product = { id: string; code: string; price_cents: number; currency: string; type: string };
+type Me = { id: string; email: string } | null;
 
-type Plan = {
-  key: PlanKey;
-  title: string;
-  price: string;
-  period: string;
-  items: string[];
-};
+const BACKEND_CANDIDATES = [
+  typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:8000` : "",
+  "http://backend:8000",
+  "http://host.docker.internal:8000",
+  "http://localhost:8000",
+  "http://127.0.0.1:8000",
+].filter(Boolean);
 
-const PLANS: Plan[] = [
-  {
-    key: "start",
-    title: "Start",
-    price: "€79",
-    period: "14 дней",
-    items: [
-      "Диагностика и карта рисков",
-      "План подготовки по неделям",
-      "Базовые модули",
-      "Тренировки интервью (лимит N)",
-      "Чеклист документов",
-    ],
-  },
-  {
-    key: "pro",
-    title: "Pro",
-    price: "€169",
-    period: "30 дней",
-    items: [
-      "Всё из Start",
-      "Тренировки интервью без лимита",
-      "Расширенная проверка формулировок",
-      "Финальный контроль готовности + отчёт",
-    ],
-  },
-  {
-    key: "intensive",
-    title: "Intensive",
-    price: "€289",
-    period: "45 дней",
-    items: [
-      "Всё из Pro",
-      "Дополнительные итерации финальной проверки",
-      "Приоритетная поддержка",
-    ],
-  },
-];
-
-function track(event: "view_pricing_section" | "select_plan_start" | "select_plan_pro" | "select_plan_intensive") {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent("analytics:event", { detail: { event } }));
-  const gtag = (window as Window & { gtag?: (...args: unknown[]) => void }).gtag;
-  if (gtag) gtag("event", event, {});
+function planFromCode(code: string): PlanKey | null {
+  if (code === "PLAN_START") return "start";
+  if (code === "PLAN_PRO") return "pro";
+  if (code === "PLAN_INTENSIVE") return "intensive";
+  return null;
 }
 
 export default function PricingPage() {
   const params = useSearchParams();
-  const [recommended, setRecommended] = useState<PlanKey>("pro");
-  const [email, setEmail] = useState("");
-  const [loadingPlan, setLoadingPlan] = useState<PlanKey | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [me, setMe] = useState<Me>(null);
+  const [showAuth, setShowAuth] = useState(false);
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [pendingProductId, setPendingProductId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [authForm, setAuthForm] = useState({ email: "", password: "", name: "" });
 
   useEffect(() => {
-    const fromUrl = params.get("plan");
-    const fromStorage = typeof window !== "undefined" ? localStorage.getItem("recommended_plan") : null;
-    const value = (fromUrl || fromStorage) as PlanKey | null;
-    if (value === "start" || value === "pro" || value === "intensive") {
-      setRecommended(value);
-    }
-  }, [params]);
+    fetch("/api/client/me", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = await res.json();
+        setMe(json?.data ?? null);
+      })
+      .catch(() => undefined);
 
-  useEffect(() => {
-    if (!rootRef.current) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            track("view_pricing_section");
-            obs.disconnect();
-          }
-        });
-      },
-      { threshold: 0.35 },
-    );
-    obs.observe(rootRef.current);
-    return () => obs.disconnect();
-  }, []);
-
-  const eventByPlan = useMemo(
-    () =>
-      ({
-        start: "select_plan_start",
-        pro: "select_plan_pro",
-        intensive: "select_plan_intensive",
-      }) as const,
-    [],
-  );
-
-  const startCheckout = async (plan: PlanKey) => {
-    setError(null);
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !normalizedEmail.includes("@")) {
-      setError("Укажите email — туда придет подтверждение оплаты.");
-      return;
-    }
-
-    setLoadingPlan(plan);
-    try {
-      if (typeof window !== "undefined") {
-        localStorage.setItem("checkout_email", normalizedEmail);
-      }
-      const apiUrl = toPublicApiUrl("/api/public/checkout");
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const res = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan,
-          email: normalizedEmail,
-          success_url: origin ? `${origin}/dashboard?checkout=success` : undefined,
-          cancel_url: origin ? `${origin}/pricing?checkout=cancelled` : undefined,
-        }),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        let errorCode: string | undefined;
-        try {
-          const parsed = JSON.parse(errText) as { error?: { code?: string } };
-          errorCode = parsed.error?.code;
-        } catch {
-          // ignore non-json backend errors
+    const loadProducts = async () => {
+      const fromProxy = await fetch("/api/public/products", { cache: "no-store" }).catch(() => null);
+      if (fromProxy?.ok) {
+        const contentType = fromProxy.headers.get("content-type") ?? "";
+        if (contentType.includes("application/json")) {
+          const json = await fromProxy.json();
+          const rows = (json?.data ?? []) as Product[];
+          setProducts(rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code)));
+          return;
         }
-
-        if (errorCode === "PRODUCT_NOT_FOUND") {
-          throw new Error("PRODUCT_NOT_FOUND");
-        }
-        if (errorCode === "STRIPE_NOT_CONFIGURED") {
-          throw new Error("STRIPE_NOT_CONFIGURED");
-        }
-        if (errorCode === "CHECKOUT_FAILED") {
-          throw new Error("CHECKOUT_FAILED");
-        }
-
-        throw new Error(errText || `HTTP ${res.status}`);
       }
 
-      const data = (await res.json()) as {
-        checkout_url?: string;
-      };
-
-      track(eventByPlan[plan]);
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url;
+      for (const baseUrl of BACKEND_CANDIDATES) {
+        const resp = await fetch(`${baseUrl}/api/public/products`, { cache: "no-store" }).catch(() => null);
+        if (!resp?.ok) continue;
+        const json = await resp.json().catch(() => null);
+        const rows = (json?.data ?? []) as Product[];
+        setProducts(rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code)));
         return;
       }
-      setError("Не получили ссылку на оплату. Попробуйте еще раз.");
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "";
-      if (errorMessage === "PRODUCT_NOT_FOUND") {
-        setError("Тариф не настроен на сервере (нет продукта).");
-      } else if (errorMessage === "STRIPE_NOT_CONFIGURED") {
-        setError("Оплата временно недоступна (Stripe не настроен).");
-      } else if (errorMessage === "CHECKOUT_FAILED") {
-        setError("Не удалось запустить оплату. Проверьте Stripe-настройки.");
-      } else {
-        setError("Не удалось запустить оплату. Проверьте сервер и Stripe-настройки.");
-      }
-    } finally {
-      setLoadingPlan(null);
+
+      setError("Не удалось загрузить тарифы. Проверь, что backend доступен на :8000.");
+    };
+
+    void loadProducts();
+  }, []);
+
+  useEffect(() => {
+    const plan = params.get("plan");
+    if (plan) localStorage.setItem("recommended_plan", plan);
+  }, [params]);
+
+  const sorted = useMemo(() => {
+    const order = { PLAN_START: 0, PLAN_PRO: 1, PLAN_INTENSIVE: 2 } as Record<string, number>;
+    return [...products].sort((a, b) => (order[a.code] ?? 99) - (order[b.code] ?? 99));
+  }, [products]);
+
+  async function runCheckout(productId: string) {
+    setError(null);
+    const res = await fetch("/api/client/payments/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ product_id: productId }),
+    });
+    const json = await res.json();
+    if (!res.ok) return setError(json?.error?.message ?? "Checkout error");
+    if (json?.data?.checkout_url) window.location.href = json.data.checkout_url;
+  }
+
+  async function onBuy(productId: string) {
+    if (!me) {
+      setPendingProductId(productId);
+      setShowAuth(true);
+      return;
     }
-  };
+    await runCheckout(productId);
+  }
+
+  async function submitAuth() {
+    const path = mode === "login" ? "/api/client/login" : "/api/client/register";
+    const payload = mode === "login"
+      ? { email: authForm.email, password: authForm.password }
+      : { email: authForm.email, password: authForm.password, name: authForm.name || authForm.email.split("@")[0] };
+    const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      return setError(json?.error?.message ?? "Auth error");
+    }
+    const meRes = await fetch("/api/client/me", { cache: "no-store" });
+    const meJson = await meRes.json();
+    setMe(meJson?.data ?? null);
+    setShowAuth(false);
+    if (pendingProductId) await runCheckout(pendingProductId);
+  }
 
   return (
-    <div className="public-page-stack pricing-clean" id="pricing" ref={rootRef}>
-      <section className="card pad pricing-clean-hero">
-        <h1 className="h1">Выберите формат подготовки</h1>
-        <p className="lead mt-12">Начните с диагностики — рекомендованный вариант уже отмечен на основе результата.</p>
-        <div className="field mt-16 pricing-email-field">
-          <label className="label" htmlFor="pricing-email">
-            Email для оплаты
-          </label>
-          <Input
-            id="pricing-email"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+    <main>
+      <h1>Тарифы</h1>
+      {error ? <p>{error}</p> : null}
+      <div style={{ display: "grid", gap: 12 }}>
+        {sorted.map((p) => (
+          <div key={p.id} style={{ border: "1px solid #ddd", padding: 12 }}>
+            <h3>{planFromCode(p.code)?.toUpperCase() ?? p.code}</h3>
+            <p>{(p.price_cents / 100).toFixed(0)} {p.currency}</p>
+            <button onClick={() => onBuy(p.id)}>Выбрать и оплатить</button>
+          </div>
+        ))}
+      </div>
+
+      {showAuth ? (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "grid", placeItems: "center" }}>
+          <div style={{ background: "#fff", padding: 16, width: 360 }}>
+            <h3>{mode === "login" ? "Войти" : "Регистрация"}</h3>
+            <input placeholder="Email" value={authForm.email} onChange={(e) => setAuthForm((s) => ({ ...s, email: e.target.value }))} />
+            <input placeholder="Password" type="password" value={authForm.password} onChange={(e) => setAuthForm((s) => ({ ...s, password: e.target.value }))} />
+            {mode === "register" ? <input placeholder="Name" value={authForm.name} onChange={(e) => setAuthForm((s) => ({ ...s, name: e.target.value }))} /> : null}
+            <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+              <button onClick={submitAuth}>Продолжить</button>
+              <button onClick={() => setMode((m) => (m === "login" ? "register" : "login"))}>{mode === "login" ? "Нет аккаунта" : "Уже есть аккаунт"}</button>
+              <button onClick={() => setShowAuth(false)}>Закрыть</button>
+            </div>
+          </div>
         </div>
-      </section>
-
-      <section className="plan-grid clean-grid pricing-grid-equal">
-        {PLANS.map((plan) => {
-          const isRecommended = plan.key === recommended;
-          const isLoading = loadingPlan === plan.key;
-          return (
-            <article
-              key={plan.key}
-              className={`clean-plan card pad pricing-plan-card ${isRecommended ? "clean-plan-featured" : ""}`}
-            >
-              <h2 className="h3">{plan.title}</h2>
-              <p className={`small mt-8 pricing-plan-note ${isRecommended ? "" : "is-empty"}`} aria-hidden={!isRecommended}>
-                Рекомендуемый формат
-              </p>
-
-              <div className="plan-price-wrap">
-                <div className="plan-price">{plan.price}</div>
-                <div className="small">{plan.period}</div>
-              </div>
-
-              <ul className="plan-list mt-16">
-                {plan.items.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-
-              <div className="hero-actions mt-16 pricing-plan-actions">
-                <Button
-                  className="w-full"
-                  variant={isRecommended ? "primary" : "secondary"}
-                  disabled={isLoading}
-                  onClick={() => startCheckout(plan.key)}
-                >
-                  {isLoading ? "Переходим к оплате..." : `Выбрать ${plan.title} и оплатить`}
-                </Button>
-              </div>
-            </article>
-          );
-        })}
-      </section>
-
-      {error ? <p className="help">{error}</p> : null}
-
-      <p className="small">
-        Результат зависит от исходных данных и выполнения программы. Подготовка снижает риск провала за счёт структуры,
-        тренировок и контроля.
-      </p>
-    </div>
+      ) : null}
+    </main>
   );
 }
