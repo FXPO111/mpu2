@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.repo import Repo
 from app.db.session import get_db
-from app.deps import get_current_user
+from app.deps import require_program_access
 from app.domain.models import APIError
 from app.services.question_bank import next_question
 from app.services.scoring import evaluate_user_message
@@ -93,7 +93,7 @@ class DayAnswerIn(BaseModel):
 
 
 @router.get("/day/today")
-def get_today(user=Depends(get_current_user), db: Session = Depends(get_db)):
+def get_today(user=Depends(require_program_access), db: Session = Depends(get_db)):
     repo = Repo(db)
 
     # Требуем, чтобы кейс был полностью собран (шаг 1)
@@ -127,7 +127,7 @@ def get_today(user=Depends(get_current_user), db: Session = Depends(get_db)):
 
 
 @router.post("/day/answer")
-def submit_answer(payload: DayAnswerIn, user=Depends(get_current_user), db: Session = Depends(get_db)):
+def submit_answer(payload: DayAnswerIn, user=Depends(require_program_access), db: Session = Depends(get_db)):
     repo = Repo(db)
 
     case = repo.get_route_case(user.id)  # <-- метод из шага 1
