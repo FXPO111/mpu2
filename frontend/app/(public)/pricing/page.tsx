@@ -7,13 +7,11 @@ type PlanKey = "start" | "pro" | "intensive";
 type Product = { id: string; code: string; price_cents: number; currency: string; type: string };
 type Me = { id: string; email: string } | null;
 
-const BACKEND_CANDIDATES = [
-  typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:8000` : "",
-  "http://backend:8000",
-  "http://host.docker.internal:8000",
-  "http://localhost:8000",
-  "http://127.0.0.1:8000",
-].filter(Boolean);
+const FALLBACK_PLANS: Product[] = [
+  { id: "fallback-start", code: "PLAN_START", price_cents: 23000, currency: "EUR", type: "program" },
+  { id: "fallback-pro", code: "PLAN_PRO", price_cents: 70000, currency: "EUR", type: "program" },
+  { id: "fallback-intensive", code: "PLAN_INTENSIVE", price_cents: 150000, currency: "EUR", type: "program" },
+];
 
 function planFromCode(code: string): PlanKey | null {
   if (code === "PLAN_START") return "start";
@@ -36,16 +34,17 @@ export default function PricingPage() {
 
   useEffect(() => {
     const loadProducts = async () => {
-      for (const baseUrl of BACKEND_CANDIDATES) {
-        const resp = await fetch(`${baseUrl}/api/public/products`, { cache: "no-store" }).catch(() => null);
-        if (!resp?.ok) continue;
+      const resp = await fetch("/api/public/products", { cache: "no-store" }).catch(() => null);
+      if (resp?.ok) {
         const json = await resp.json().catch(() => null);
         const rows = (json?.data ?? []) as Product[];
-        setProducts(rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code)));
+        const plans = rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code));
+        setProducts(plans.length ? plans : FALLBACK_PLANS);
         return;
       }
 
-      setError("Не удалось загрузить тарифы. Проверь, что backend доступен на :8000.");
+      setProducts(FALLBACK_PLANS);
+      setError("Не удалось обновить тарифы с сервера, показаны базовые цены.");
     };
 
     void loadProducts();
@@ -61,7 +60,7 @@ export default function PricingPage() {
     return [...products].sort((a, b) => (order[a.code] ?? 99) - (order[b.code] ?? 99));
   }, [products]);
 
-  async function runCheckout(productId: string) {
+  async function runCheckout(productId: string): Promise<boolean> {
     setError(null);
     const res = await fetch("/api/client/payments/checkout", {
       method: "POST",
@@ -69,8 +68,37 @@ export default function PricingPage() {
       body: JSON.stringify({ product_id: productId }),
     });
     const json = await res.json().catch(() => ({} as any));
-    if (!res.ok) return setError(json?.error?.message ?? "Checkout error");
-    if (json?.data?.checkout_url) window.location.href = json.data.checkout_url;
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        setShowAuth(true);
+        setAuthError("Сессия истекла, войдите снова.");
+      } else {
+        setError(json?.error?.message ?? "Checkout error");
+      }
+      return false;
+    }
+
+    if (json?.data?.checkout_url) {
+      window.location.href = json.data.checkout_url;
+      return true;
+    }
+
+    setError("Сервер не вернул ссылку на оплату");
+    return false;
+  }
+
+  async function ensureSessionReady(): Promise<boolean> {
+    for (let i = 0; i < 5; i += 1) {
+      const meRes = await fetch("/api/client/me", { cache: "no-store" }).catch(() => null);
+      if (meRes?.ok) {
+        const meJson = await meRes.json().catch(() => null);
+        setMe(meJson?.data ?? null);
+        return true;
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return false;
   }
 
   async function onBuy(productId: string) {
@@ -90,6 +118,7 @@ export default function PricingPage() {
       setShowAuth(true);
       return;
     }
+
     await runCheckout(productId);
   }
 
@@ -143,9 +172,18 @@ export default function PricingPage() {
         return;
       }
 
-      setMe({ id: "self", email });
+      const isSessionReady = await ensureSessionReady();
+      if (!isSessionReady) {
+        setAuthError("Логин не подтвердился. Попробуйте ещё раз.");
+        return;
+      }
+
+      if (pendingProductId) {
+        const started = await runCheckout(pendingProductId);
+        if (!started) return;
+      }
+
       setShowAuth(false);
-      if (pendingProductId) await runCheckout(pendingProductId);
     } catch {
       setAuthError("Сетевая ошибка. Попробуйте ещё раз.");
     } finally {
