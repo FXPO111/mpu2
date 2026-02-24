@@ -35,26 +35,7 @@ export default function PricingPage() {
   const [authLoading, setAuthLoading] = useState(false);
 
   useEffect(() => {
-    fetch("/api/client/me", { cache: "no-store" })
-      .then(async (res) => {
-        if (!res.ok) return;
-        const json = await res.json();
-        setMe(json?.data ?? null);
-      })
-      .catch(() => undefined);
-
     const loadProducts = async () => {
-      const fromProxy = await fetch("/api/public/products", { cache: "no-store" }).catch(() => null);
-      if (fromProxy?.ok) {
-        const contentType = fromProxy.headers.get("content-type") ?? "";
-        if (contentType.includes("application/json")) {
-          const json = await fromProxy.json();
-          const rows = (json?.data ?? []) as Product[];
-          setProducts(rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code)));
-          return;
-        }
-      }
-
       for (const baseUrl of BACKEND_CANDIDATES) {
         const resp = await fetch(`${baseUrl}/api/public/products`, { cache: "no-store" }).catch(() => null);
         if (!resp?.ok) continue;
@@ -93,7 +74,17 @@ export default function PricingPage() {
   }
 
   async function onBuy(productId: string) {
-    if (!me) {
+    let effectiveUser = me;
+    if (!effectiveUser) {
+      const meRes = await fetch("/api/client/me", { cache: "no-store" }).catch(() => null);
+      if (meRes?.ok) {
+        const meJson = await meRes.json().catch(() => null);
+        effectiveUser = meJson?.data ?? null;
+        setMe(effectiveUser);
+      }
+    }
+
+    if (!effectiveUser) {
       setPendingProductId(productId);
       setAuthError(null);
       setShowAuth(true);
@@ -111,6 +102,10 @@ export default function PricingPage() {
 
     if (!email || !password) {
       setAuthError("Введите email и пароль");
+      return;
+    }
+    if (password.length < 10) {
+      setAuthError("Пароль должен быть минимум 10 символов");
       return;
     }
     if (mode === "register" && !name) {
@@ -134,9 +129,10 @@ export default function PricingPage() {
     });
 
     if (!res.ok) {
-      const json = await res.json().catch(() => ({}));
+      const json = await res.json().catch(() => ({} as any));
+      const detail = Array.isArray(json?.detail) ? json.detail[0]?.msg : null;
       setAuthLoading(false);
-      return setAuthError(json?.error?.message ?? "Auth error");
+      return setAuthError(json?.error?.message ?? detail ?? "Auth error");
     }
 
     const meRes = await fetch("/api/client/me", { cache: "no-store" });
@@ -205,9 +201,7 @@ export default function PricingPage() {
             ) : null}
 
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              <button onClick={() => void submitAuth()} disabled={authLoading}>
-                {authLoading ? "Проверка..." : "Продолжить"}
-              </button>
+              <button onClick={() => void submitAuth()} disabled={authLoading}>{authLoading ? "Проверка..." : "Продолжить"}</button>
               <button
                 onClick={() => {
                   if (authLoading) return;
