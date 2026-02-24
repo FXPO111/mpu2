@@ -129,3 +129,24 @@ async def webhook(
         raise exc
 
     return {"data": {"received": True, "deduplicated": not is_new, "processed": processed}}
+
+
+@router.get("/status")
+def payments_status(user=Depends(get_current_user), db: Session = Depends(get_db)):
+    repo = Repo(db)
+    program_active = repo.has_active_entitlement(user.id, "program_access")
+    program_valid_to = repo.active_program_valid_to(user.id)
+
+    latest_program_order = repo.latest_paid_program_order(user.id)
+    plan = None
+    if latest_program_order and latest_program_order.product:
+        plan = (latest_program_order.product.metadata_json or {}).get("plan")
+
+    return {
+        "data": {
+            "program_active": program_active,
+            "program_valid_to": program_valid_to.isoformat() if program_valid_to else None,
+            "plan": plan,
+            "ai_credits_remaining": repo.ai_credits_remaining(user.id),
+        }
+    }

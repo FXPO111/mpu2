@@ -119,6 +119,54 @@ class Repo:
     def consume_credit(self, user_id: UUID) -> bool:
         return self.consume_entitlement(user_id, "ai_credits")
 
+    def has_active_entitlement(self, user_id: UUID, kind: str) -> bool:
+        now = _now_utc()
+        row = self.db.scalar(
+            select(Entitlement.id).where(
+                Entitlement.user_id == user_id,
+                Entitlement.kind == kind,
+                Entitlement.valid_from <= now,
+                or_(Entitlement.valid_to.is_(None), Entitlement.valid_to >= now),
+            )
+        )
+        return row is not None
+
+    def latest_paid_program_order(self, user_id: UUID) -> Order | None:
+        return self.db.scalar(
+            select(Order)
+            .join(Product, Product.id == Order.product_id)
+            .where(
+                Order.user_id == user_id,
+                Order.status == "paid",
+                Product.type == "program",
+            )
+            .order_by(Order.updated_at.desc(), Order.created_at.desc())
+            .limit(1)
+        )
+
+    def active_program_valid_to(self, user_id: UUID) -> datetime | None:
+        now = _now_utc()
+        return self.db.scalar(
+            select(func.max(Entitlement.valid_to)).where(
+                Entitlement.user_id == user_id,
+                Entitlement.kind == "program_access",
+                Entitlement.valid_from <= now,
+                or_(Entitlement.valid_to.is_(None), Entitlement.valid_to >= now),
+            )
+        )
+
+    def ai_credits_remaining(self, user_id: UUID) -> int:
+        now = _now_utc()
+        remaining = self.db.scalar(
+            select(func.coalesce(func.sum(Entitlement.qty_total - Entitlement.qty_used), 0)).where(
+                Entitlement.user_id == user_id,
+                Entitlement.kind == "ai_credits",
+                Entitlement.valid_from <= now,
+                or_(Entitlement.valid_to.is_(None), Entitlement.valid_to >= now),
+            )
+        )
+        return int(remaining or 0)
+
     def grant_entitlement_once(self, order: Order, kind: str, qty_total: int) -> Entitlement:
         existing = self.db.scalar(
             select(Entitlement).where(
