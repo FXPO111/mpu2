@@ -72,6 +72,7 @@ export default function PricingPage() {
       body: JSON.stringify({ product_id: productId }),
     });
     const json = await res.json().catch(() => ({} as any));
+
     if (!res.ok) {
       if (res.status === 401) {
         setShowAuth(true);
@@ -81,10 +82,12 @@ export default function PricingPage() {
       }
       return false;
     }
+
     if (json?.data?.checkout_url) {
       window.location.href = json.data.checkout_url;
       return true;
     }
+
     setError("Сервер не вернул ссылку на оплату");
     return false;
   }
@@ -124,11 +127,13 @@ export default function PricingPage() {
       setShowAuth(true);
       return;
     }
+
     await runCheckout(productId);
   }
 
   async function submitAuth() {
     if (authLoading) return;
+
     const email = authForm.email.trim();
     const password = authForm.password.trim();
     const name = authForm.name.trim();
@@ -148,25 +153,34 @@ export default function PricingPage() {
 
     setAuthLoading(true);
     setAuthError(null);
+
     try {
       const path = mode === "login" ? "/api/client/login" : "/api/client/register";
-      const payload = mode === "login"
-        ? { email, password }
-        : { email, password, name: name || email.split("@")[0] };
-      const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const payload =
+        mode === "login"
+          ? { email, password }
+          : { email, password, name: name || email.split("@")[0] };
+
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
       if (!res.ok) {
         const json = await res.json().catch(() => ({} as any));
         const detail = Array.isArray(json?.detail) ? json.detail[0]?.msg : null;
+
         if (mode === "register" && res.status === 409) {
           setMode("login");
           setAuthError("Этот email уже зарегистрирован. Войдите с паролем.");
           return;
         }
+
         setAuthError(json?.error?.message ?? detail ?? "Auth error");
         return;
       }
 
-      // Не блокируем UX повторным /me: cookie уже выставлен в proxy login/register.
       const isSessionReady = await ensureSessionReady();
       if (!isSessionReady) {
         setAuthError("Логин не подтвердился. Попробуйте ещё раз.");
@@ -214,6 +228,7 @@ export default function PricingPage() {
           >
             <h3>{mode === "login" ? "Войти" : "Регистрация"}</h3>
             {authError ? <p style={{ color: "#b42318" }}>{authError}</p> : null}
+
             <input
               placeholder="Email"
               value={authForm.email}
@@ -241,8 +256,11 @@ export default function PricingPage() {
                 }}
               />
             ) : null}
+
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              <button onClick={() => void submitAuth()} disabled={authLoading}>{authLoading ? "Проверка..." : "Продолжить"}</button>
+              <button onClick={() => void submitAuth()} disabled={authLoading}>
+                {authLoading ? "Проверка..." : "Продолжить"}
+              </button>
               <button
                 onClick={() => {
                   if (authLoading) return;

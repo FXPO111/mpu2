@@ -37,13 +37,20 @@ export async function POST(request: NextRequest) {
   const email = String(payload?.email ?? "").trim();
   const password = String(payload?.password ?? "");
   const name = String(payload?.name ?? "").trim();
-  if (!email || !password || !name) return NextResponse.json({ error: { message: "email/password/name required" } }, { status: 422 });
+  if (!email || !password || !name) {
+    return NextResponse.json({ error: { message: "email/password/name required" } }, { status: 422 });
+  }
 
   for (const baseUrl of resolveBackendCandidates()) {
     try {
       const registerResp = await fetchWithTimeout(
         `${baseUrl}/api/auth/register`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, name }), cache: "no-store" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, name }),
+          cache: "no-store",
+        },
         FETCH_TIMEOUT_MS,
       );
 
@@ -59,9 +66,15 @@ export async function POST(request: NextRequest) {
 
       const loginResp = await fetchWithTimeout(
         `${baseUrl}/api/auth/login`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }), cache: "no-store" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+          cache: "no-store",
+        },
         FETCH_TIMEOUT_MS,
       );
+
       const loginText = await loginResp.text();
       if (!loginResp.ok) {
         return new NextResponse(loginText, {
@@ -73,7 +86,12 @@ export async function POST(request: NextRequest) {
       const json = JSON.parse(loginText);
       const token = json?.data?.access_token;
       const res = NextResponse.json({ data: { ok: true } });
-      res.cookies.set("mpu_token", String(token), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" });
+      res.cookies.set("mpu_token", String(token), {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      });
       return res;
     } catch {
       // try next
