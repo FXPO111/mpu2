@@ -13,6 +13,10 @@ const FALLBACK_PLANS: Product[] = [
   { id: "fallback-intensive", code: "PLAN_INTENSIVE", price_cents: 150000, currency: "EUR", type: "program" },
 ];
 
+function isValidUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function planFromCode(code: string): PlanKey | null {
   if (code === "PLAN_START") return "start";
   if (code === "PLAN_PRO") return "pro";
@@ -102,6 +106,11 @@ export default function PricingPage() {
   }
 
   async function onBuy(productId: string) {
+    if (!isValidUuid(productId)) {
+      setError("Тарифы не синхронизированы с сервером. Обновите страницу и попробуйте снова.");
+      return;
+    }
+
     let effectiveUser = me;
     if (!effectiveUser) {
       const meRes = await fetch("/api/client/me", { cache: "no-store" }).catch(() => null);

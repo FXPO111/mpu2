@@ -27,42 +27,74 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 }
 
 export async function POST(request: NextRequest) {
-  const payload = await request.json();
+  let payload: any;
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ error: { message: "Invalid JSON body" } }, { status: 400 });
+  }
+
   const email = String(payload?.email ?? "").trim();
   const password = String(payload?.password ?? "");
   const name = String(payload?.name ?? "").trim();
-  if (!email || !password || !name) return NextResponse.json({ error: { message: "email/password/name required" } }, { status: 422 });
+  if (!email || !password || !name) {
+    return NextResponse.json({ error: { message: "email/password/name required" } }, { status: 422 });
+  }
 
   for (const baseUrl of resolveBackendCandidates()) {
     try {
-      const registerResp = await fetchWithTimeout(`${baseUrl}/api/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, name }),
-        cache: "no-store",
-      }, FETCH_TIMEOUT_MS);
+      const registerResp = await fetchWithTimeout(
+        `${baseUrl}/api/auth/register`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, name }),
+          cache: "no-store",
+        },
+        FETCH_TIMEOUT_MS,
+      );
+
+      if ([404, 502, 503, 504].includes(registerResp.status)) continue;
+
       const registerText = await registerResp.text();
       if (!registerResp.ok && registerResp.status !== 409) {
-        return new NextResponse(registerText, { status: registerResp.status, headers: { "content-type": registerResp.headers.get("content-type") ?? "application/json" } });
+        return new NextResponse(registerText, {
+          status: registerResp.status,
+          headers: { "content-type": registerResp.headers.get("content-type") ?? "application/json" },
+        });
       }
 
-      const loginResp = await fetchWithTimeout(`${baseUrl}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-        cache: "no-store",
-      }, FETCH_TIMEOUT_MS);
+      const loginResp = await fetchWithTimeout(
+        `${baseUrl}/api/auth/login`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+          cache: "no-store",
+        },
+        FETCH_TIMEOUT_MS,
+      );
+
       const loginText = await loginResp.text();
       if (!loginResp.ok) {
-        return new NextResponse(loginText, { status: loginResp.status, headers: { "content-type": loginResp.headers.get("content-type") ?? "application/json" } });
+        return new NextResponse(loginText, {
+          status: loginResp.status,
+          headers: { "content-type": loginResp.headers.get("content-type") ?? "application/json" },
+        });
       }
+
       const json = JSON.parse(loginText);
       const token = json?.data?.access_token;
       const res = NextResponse.json({ data: { ok: true } });
-      res.cookies.set("mpu_token", String(token), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" });
+      res.cookies.set("mpu_token", String(token), {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      });
       return res;
     } catch {
-      // try next candidate
+      // try next
     }
   }
 
