@@ -68,7 +68,7 @@ export default function PricingPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ product_id: productId }),
     });
-    const json = await res.json();
+    const json = await res.json().catch(() => ({} as any));
     if (!res.ok) return setError(json?.error?.message ?? "Checkout error");
     if (json?.data?.checkout_url) window.location.href = json.data.checkout_url;
   }
@@ -116,31 +116,41 @@ export default function PricingPage() {
     setAuthLoading(true);
     setAuthError(null);
 
-    const path = mode === "login" ? "/api/client/login" : "/api/client/register";
-    const payload =
-      mode === "login"
-        ? { email, password }
-        : { email, password, name: name || email.split("@")[0] };
+    try {
+      const path = mode === "login" ? "/api/client/login" : "/api/client/register";
+      const payload =
+        mode === "login"
+          ? { email, password }
+          : { email, password, name: name || email.split("@")[0] };
 
-    const res = await fetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    if (!res.ok) {
-      const json = await res.json().catch(() => ({} as any));
-      const detail = Array.isArray(json?.detail) ? json.detail[0]?.msg : null;
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({} as any));
+        const detail = Array.isArray(json?.detail) ? json.detail[0]?.msg : null;
+
+        if (mode === "register" && res.status === 409) {
+          setMode("login");
+          setAuthError("Этот email уже зарегистрирован. Войдите с паролем.");
+          return;
+        }
+
+        setAuthError(json?.error?.message ?? detail ?? "Auth error");
+        return;
+      }
+
+      setMe({ id: "self", email });
+      setShowAuth(false);
+      if (pendingProductId) await runCheckout(pendingProductId);
+    } catch {
+      setAuthError("Сетевая ошибка. Попробуйте ещё раз.");
+    } finally {
       setAuthLoading(false);
-      return setAuthError(json?.error?.message ?? detail ?? "Auth error");
     }
-
-    const meRes = await fetch("/api/client/me", { cache: "no-store" });
-    const meJson = await meRes.json();
-    setMe(meJson?.data ?? null);
-    setShowAuth(false);
-    setAuthLoading(false);
-    if (pendingProductId) await runCheckout(pendingProductId);
   }
 
   return (
@@ -201,7 +211,9 @@ export default function PricingPage() {
             ) : null}
 
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              <button onClick={() => void submitAuth()} disabled={authLoading}>{authLoading ? "Проверка..." : "Продолжить"}</button>
+              <button onClick={() => void submitAuth()} disabled={authLoading}>
+                {authLoading ? "Проверка..." : "Продолжить"}
+              </button>
               <button
                 onClick={() => {
                   if (authLoading) return;
