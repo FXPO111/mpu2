@@ -31,6 +31,8 @@ export default function PricingPage() {
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authForm, setAuthForm] = useState({ email: "", password: "", name: "" });
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
 
   useEffect(() => {
     fetch("/api/client/me", { cache: "no-store" })
@@ -48,11 +50,7 @@ export default function PricingPage() {
         if (contentType.includes("application/json")) {
           const json = await fromProxy.json();
           const rows = (json?.data ?? []) as Product[];
-          setProducts(
-            rows.filter(
-              (p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code),
-            ),
-          );
+          setProducts(rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code)));
           return;
         }
       }
@@ -62,11 +60,7 @@ export default function PricingPage() {
         if (!resp?.ok) continue;
         const json = await resp.json().catch(() => null);
         const rows = (json?.data ?? []) as Product[];
-        setProducts(
-          rows.filter(
-            (p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code),
-          ),
-        );
+        setProducts(rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code)));
         return;
       }
 
@@ -101,6 +95,7 @@ export default function PricingPage() {
   async function onBuy(productId: string) {
     if (!me) {
       setPendingProductId(productId);
+      setAuthError(null);
       setShowAuth(true);
       return;
     }
@@ -108,11 +103,29 @@ export default function PricingPage() {
   }
 
   async function submitAuth() {
+    if (authLoading) return;
+
+    const email = authForm.email.trim();
+    const password = authForm.password.trim();
+    const name = authForm.name.trim();
+
+    if (!email || !password) {
+      setAuthError("Введите email и пароль");
+      return;
+    }
+    if (mode === "register" && !name) {
+      setAuthError("Введите имя для регистрации");
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError(null);
+
     const path = mode === "login" ? "/api/client/login" : "/api/client/register";
     const payload =
       mode === "login"
-        ? { email: authForm.email, password: authForm.password }
-        : { email: authForm.email, password: authForm.password, name: authForm.name || authForm.email.split("@")[0] };
+        ? { email, password }
+        : { email, password, name: name || email.split("@")[0] };
 
     const res = await fetch(path, {
       method: "POST",
@@ -122,13 +135,15 @@ export default function PricingPage() {
 
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
-      return setError(json?.error?.message ?? "Auth error");
+      setAuthLoading(false);
+      return setAuthError(json?.error?.message ?? "Auth error");
     }
 
     const meRes = await fetch("/api/client/me", { cache: "no-store" });
     const meJson = await meRes.json();
     setMe(meJson?.data ?? null);
     setShowAuth(false);
+    setAuthLoading(false);
     if (pendingProductId) await runCheckout(pendingProductId);
   }
 
@@ -140,9 +155,7 @@ export default function PricingPage() {
         {sorted.map((p) => (
           <div key={p.id} style={{ border: "1px solid #ddd", padding: 12 }}>
             <h3>{planFromCode(p.code)?.toUpperCase() ?? p.code}</h3>
-            <p>
-              {(p.price_cents / 100).toFixed(0)} {p.currency}
-            </p>
+            <p>{(p.price_cents / 100).toFixed(0)} {p.currency}</p>
             <button onClick={() => onBuy(p.id)}>Выбрать и оплатить</button>
           </div>
         ))}
@@ -150,40 +163,62 @@ export default function PricingPage() {
 
       {showAuth ? (
         <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,.35)",
-            display: "grid",
-            placeItems: "center",
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.35)", display: "grid", placeItems: "center", zIndex: 9999 }}
+          onClick={() => {
+            if (authLoading) return;
+            setShowAuth(false);
           }}
         >
-          <div style={{ background: "#fff", padding: 16, width: 360 }}>
+          <div
+            style={{ background: "#fff", padding: 16, width: 360, borderRadius: 12 }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3>{mode === "login" ? "Войти" : "Регистрация"}</h3>
+            {authError ? <p style={{ color: "#b42318" }}>{authError}</p> : null}
+
             <input
               placeholder="Email"
               value={authForm.email}
               onChange={(e) => setAuthForm((s) => ({ ...s, email: e.target.value }))}
+              style={{ width: "100%", marginBottom: 8 }}
             />
             <input
               placeholder="Password"
               type="password"
               value={authForm.password}
               onChange={(e) => setAuthForm((s) => ({ ...s, password: e.target.value }))}
+              style={{ width: "100%", marginBottom: 8 }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void submitAuth();
+              }}
             />
             {mode === "register" ? (
               <input
                 placeholder="Name"
                 value={authForm.name}
                 onChange={(e) => setAuthForm((s) => ({ ...s, name: e.target.value }))}
+                style={{ width: "100%", marginBottom: 8 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void submitAuth();
+                }}
               />
             ) : null}
+
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              <button onClick={submitAuth}>Продолжить</button>
-              <button onClick={() => setMode((m) => (m === "login" ? "register" : "login"))}>
+              <button onClick={() => void submitAuth()} disabled={authLoading}>
+                {authLoading ? "Проверка..." : "Продолжить"}
+              </button>
+              <button
+                onClick={() => {
+                  if (authLoading) return;
+                  setMode((m) => (m === "login" ? "register" : "login"));
+                  setAuthError(null);
+                }}
+                disabled={authLoading}
+              >
                 {mode === "login" ? "Нет аккаунта" : "Уже есть аккаунт"}
               </button>
-              <button onClick={() => setShowAuth(false)}>Закрыть</button>
+              <button onClick={() => setShowAuth(false)} disabled={authLoading}>Закрыть</button>
             </div>
           </div>
         </div>
