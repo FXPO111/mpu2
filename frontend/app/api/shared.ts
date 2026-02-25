@@ -92,7 +92,7 @@ export async function proxyPublicGet(backendPath: string) {
       if (isRetryableStatus(resp.status)) continue;
       return new NextResponse(await resp.text(), {
         status: resp.status,
-       headers: { "content-type": resp.headers.get("content-type") ?? "application/json" },
+        headers: { "content-type": resp.headers.get("content-type") ?? "application/json" },
       });
     } catch {
       // try next

@@ -6,8 +6,6 @@ import { useSearchParams } from "next/navigation";
 type PlanKey = "start" | "pro" | "intensive";
 type Product = { id: string; code: string; price_cents: number; currency: string; type: string };
 
-type Me = { id: string; email: string } | null;
-
 const FALLBACK_PLANS: Product[] = [
   { id: "fallback-start", code: "PLAN_START", price_cents: 23000, currency: "EUR", type: "program" },
   { id: "fallback-pro", code: "PLAN_PRO", price_cents: 70000, currency: "EUR", type: "program" },
@@ -40,7 +38,6 @@ function planFromCode(code: string): PlanKey | null {
 export default function PricingPage() {
   const params = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
-  const [me, setMe] = useState<Me>(null);
   const [showAuth, setShowAuth] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
@@ -99,14 +96,10 @@ export default function PricingPage() {
     return false;
   }
 
-  async function ensureSessionReady(): Promise<boolean> {
-    for (let i = 0; i < 5; i += 1) {
-      const meRes = await fetch("/api/client/me", { cache: "no-store" }).catch(() => null);
-      if (meRes?.ok) {
-        const meJson = await meRes.json().catch(() => null);
-        setMe(meJson?.data ?? null);
-        return true;
-      }
+  async function tryCheckoutWithRetry(productId: string, attempts = 3): Promise<boolean> {
+    for (let i = 0; i < attempts; i += 1) {
+      const started = await runCheckout(productId);
+      if (started) return true;
       await new Promise((r) => setTimeout(r, 250));
     }
     return false;
@@ -133,24 +126,12 @@ export default function PricingPage() {
       return;
     }
 
-    let effectiveUser = me;
-    if (!effectiveUser) {
-      const meRes = await fetch("/api/client/me", { cache: "no-store" }).catch(() => null);
-      if (meRes?.ok) {
-        const meJson = await meRes.json().catch(() => null);
-        effectiveUser = meJson?.data ?? null;
-        setMe(effectiveUser);
-      }
-    }
+    const started = await runCheckout(checkoutProductId);
+    if (started) return;
 
-    if (!effectiveUser) {
-      setPendingProductId(productId);
-      setAuthError(null);
-      setShowAuth(true);
-      return;
-    }
-
-    await runCheckout(checkoutProductId);
+    setPendingProductId(productId);
+    setAuthError(null);
+    setShowAuth(true);
   }
 
   async function submitAuth() {
@@ -178,8 +159,16 @@ export default function PricingPage() {
 
     try {
       const path = mode === "login" ? "/api/client/login" : "/api/client/register";
-      const payload = mode === "login" ? { email, password } : { email, password, name: name || email.split("@")[0] };
-      const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const payload =
+        mode === "login"
+          ? { email, password }
+          : { email, password, name: name || email.split("@")[0] };
+
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({} as any));
@@ -193,11 +182,7 @@ export default function PricingPage() {
         return;
       }
 
-      const isSessionReady = await ensureSessionReady();
-      if (!isSessionReady) {
-        setAuthError("Логин не подтвердился. Попробуйте ещё раз.");
-        return;
-      }
+      // Не блокируем UX повторным /me: cookie уже выставлен в proxy login/register.
 
       if (pendingProductId) {
         const checkoutProductId = await resolveCheckoutProductId(pendingProductId);
@@ -206,8 +191,11 @@ export default function PricingPage() {
           return;
         }
 
-        const started = await runCheckout(checkoutProductId);
-        if (!started) return;
+        const started = await tryCheckoutWithRetry(checkoutProductId, 3);
+        if (!started) {
+          setAuthError("Не удалось перейти к оплате. Проверьте данные и попробуйте снова.");
+          return;
+        }
       }
 
       setShowAuth(false);
@@ -242,10 +230,12 @@ export default function PricingPage() {
             setShowAuth(false);
           }}
         >
-          <div style={{ background: "#fff", padding: 16, width: 360, borderRadius: 12 }} onClick={(e) => e.stopPropagation()}>
+          <div
+            style={{ background: "#fff", padding: 16, width: 360, borderRadius: 12 }}
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3>{mode === "login" ? "Войти" : "Регистрация"}</h3>
             {authError ? <p style={{ color: "#b42318" }}>{authError}</p> : null}
-
             <input
               placeholder="Email"
               value={authForm.email}
@@ -273,7 +263,6 @@ export default function PricingPage() {
                 }}
               />
             ) : null}
-
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
               <button onClick={() => void submitAuth()} disabled={authLoading}>
                 {authLoading ? "Проверка..." : "Продолжить"}

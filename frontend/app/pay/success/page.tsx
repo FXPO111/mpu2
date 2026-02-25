@@ -11,7 +11,7 @@ export default function PaySuccessPage() {
       const res = await fetch("/api/client/payments/status", { cache: "no-store" });
       const json = await res.json();
       if (json?.data?.program_active) {
-        window.location.href = "/dashboard";
+        window.location.href = "/dashboard?from_checkout=1";
         return;
       }
       if (tries >= 60) {
@@ -22,5 +22,10 @@ export default function PaySuccessPage() {
     return () => clearInterval(id);
   }, []);
 
-  return <main><h1>{status}</h1><a href="/dashboard">Перейти в кабинет</a></main>;
+  return (
+    <main>
+      <h1>{status}</h1>
+      <a href="/dashboard?from_checkout=1">Перейти в кабинет</a>
+    </main>
+  );
 }
