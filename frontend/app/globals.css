@@ -1164,6 +1164,58 @@ body{
   flex-wrap: wrap;
 }
 
+.public-header-controls{
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.public-account-wrap{
+  display: flex;
+  align-items: center;
+}
+
+.public-account-menu{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #243a31;
+  white-space: nowrap;
+}
+
+.public-account-email{
+  font-size: 14px;
+}
+
+.public-account-link{
+  border: 0;
+  background: transparent;
+  color: #243a31;
+  padding: 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.public-account-login{
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 1px solid rgba(17, 42, 28, 0.18);
+  border-radius: 999px;
+  background: rgba(255,255,255,.84);
+  color: #243a31;
+  font-weight: 600;
+}
+
+.public-account-login:hover{
+  background: #fff;
+}
+
 .footer-links{
   display: grid;
   gap: 8px;
@@ -1260,6 +1312,9 @@ body{
 }
 
 @media (max-width: 620px){
+  .public-header-controls{
+    width: 100%;
+  }
   .header-actions{
     width: 100%;
   }
@@ -2757,9 +2812,17 @@ body:has(.diagnostic-page) .header-actions a[href="/diagnostic"]{
   padding-bottom: 8px;
 }
 
+.cabinet-v2-page {
+  padding-top: 18px;
+}
+
 .cabinet-v2-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: #163128; }
 .cabinet-v2-dot { width: 10px; height: 10px; border-radius: 50%; background: #24a866; }
 .cabinet-v2-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+.cabinet-v2-nav-top {
+  justify-content: center;
+  width: 100%;
+}
 .cabinet-v2-email {
   max-width: 220px;
   white-space: nowrap;
@@ -2771,6 +2834,30 @@ body:has(.diagnostic-page) .header-actions a[href="/diagnostic"]{
   padding: 8px 12px;
   background: #ffffff;
   color: #2c473d;
+}
+
+.cabinet-v2-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cabinet-v2-menu-link {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid #d6e2dd;
+  border-radius: 999px;
+  color: #2e483f;
+  background: #f7faf8;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+button.cabinet-v2-menu-link {
+  cursor: pointer;
 }
 
 .cabinet-v2-main { display: grid; gap: 12px; }
