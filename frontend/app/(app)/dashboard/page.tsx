@@ -313,20 +313,7 @@ export default function DashboardPage() {
 
   return (
     <main className="cabinet-v2-main">
-      <section className="cabinet-v2-hero">
-        <div>
-          <h1 className="cabinet-v2-title">Рабочий кабинет подготовки к MPU</h1>
-          <p className="cabinet-v2-subtitle">Пошаговая подготовка: маршрут, экзамен, досье и подтверждения.</p>
-        </div>
-        <div className="cabinet-v2-chips">
-          <span className="chip">План: {PLAN_LABEL[plan]}</span>
-          <span className="chip">День: {Math.max(1, completedDays + 1)}/30</span>
-          <span className="chip">Фокус: {focus}</span>
-          <span className="chip">Прогресс: {overallProgress}%</span>
-        </div>
-      </section>
-
-      <nav className="cabinet-v2-nav">
+      <nav className="cabinet-v2-nav cabinet-v2-nav-top">
         <a className={`navlink ${view === "overview" ? "active" : ""}`} href="/dashboard?view=overview">
           Обзор
         </a>
@@ -343,6 +330,19 @@ export default function DashboardPage() {
           Доказательства
         </a>
       </nav>
+
+      <section className="cabinet-v2-hero">
+        <div>
+          <h1 className="cabinet-v2-title">Рабочий кабинет подготовки к MPU</h1>
+          <p className="cabinet-v2-subtitle">Пошаговая подготовка: маршрут, экзамен, досье и подтверждения.</p>
+        </div>
+        <div className="cabinet-v2-chips">
+          <span className="chip">План: {PLAN_LABEL[plan]}</span>
+          <span className="chip">День: {Math.max(1, completedDays + 1)}/30</span>
+          <span className="chip">Фокус: {focus}</span>
+          <span className="chip">Прогресс: {overallProgress}%</span>
+        </div>
+      </section>
 
       {view === "overview" ? (
         <>
@@ -376,7 +376,7 @@ export default function DashboardPage() {
                     className="cabinet-v2-circle-item"
                     aria-label={`${ARTIFACT_LABEL[a.id]} ${a.pct}%`}
                   >
-                    <div className="cabinet-v2-circle">
+                    <div className="cabinet-v2-circle" style={{ ["--pct" as string]: a.pct }}>
                       <strong>{a.pct}%</strong>
                     </div>
                     <span>{ARTIFACT_LABEL[a.id]}</span>

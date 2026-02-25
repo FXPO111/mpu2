@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export default function AccountMenu({ compact = false }: { compact?: boolean }) {
+export default function AccountMenu({ compact = false, publicMode = false }: { compact?: boolean; publicMode?: boolean }) {
   const [me, setMe] = useState<{ email: string } | null>(null);
 
   useEffect(() => {
@@ -22,6 +22,17 @@ export default function AccountMenu({ compact = false }: { compact?: boolean }) 
 
   if (compact) {
     return <span className="cabinet-v2-email">{me.email}</span>;
+  }
+
+  if (publicMode) {
+    return (
+      <div className="public-account-menu">
+        <span className="public-account-email">{me.email}</span>
+        <a className="public-account-link" href="/dashboard">Кабинет</a>
+        <a className="public-account-link" href="/">Главная</a>
+        <button className="public-account-link" onClick={logout}>Выйти</button>
+      </div>
+    );
   }
 
   return (

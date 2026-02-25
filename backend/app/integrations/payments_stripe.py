@@ -129,4 +129,5 @@ def construct_event(
         raise StripeError("Invalid webhook signature") from e
     except Exception as e:
         raise StripeError(f"Webhook parse error: {e}") from e
+
     return event.to_dict()

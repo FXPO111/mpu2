@@ -67,7 +67,10 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
                 Тарифы
               </Button>
             </Link>
-            <AccountMenu />
+          </div>
+
+          <div className="public-account-wrap">
+            <AccountMenu publicMode />
           </div>
         </div>
       </header>
