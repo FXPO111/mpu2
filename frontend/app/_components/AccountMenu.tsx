@@ -23,6 +23,7 @@ export default function AccountMenu({ compact = false, publicMode = false }: { c
     }
     return <a className="cabinet-v2-menu-link" href="/login">Войти</a>;
   }
+
   if (compact) {
     return (
       <div className="cabinet-v2-menu">
