@@ -60,8 +60,8 @@ def create_checkout_session(
     """
     init_stripe(secret_key)
 
-    default_success_url = f"{frontend_url}/dashboard?checkout=success&order_id={order_id}"
-    default_cancel_url = f"{frontend_url}/pricing?checkout=cancelled"
+    default_success_url = f"{frontend_url}/pay/success?order_id={order_id}&session_id={{CHECKOUT_SESSION_ID}}"
+    default_cancel_url = f"{frontend_url}/pay/cancel"
 
     success_url = (success_url_override or "").strip() or default_success_url
     cancel_url = (cancel_url_override or "").strip() or default_cancel_url
@@ -98,6 +98,15 @@ def create_checkout_session(
         raise StripeError(f"Failed to create checkout session: {e}") from e
 
     return {"id": session["id"], "url": session.get("url")}
+
+
+def retrieve_checkout_session(*, secret_key: str, session_id: str) -> Dict[str, Any]:
+    init_stripe(secret_key)
+    try:
+        session = stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        raise StripeError(f"Failed to retrieve checkout session: {e}") from e
+    return session.to_dict()
 
 
 def construct_event(
