@@ -1,62 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
-
-const FETCH_TIMEOUT_MS = 8000;
-
-function resolveBackendCandidates(): string[] {
-  const unique = new Set<string>();
-  const add = (value?: string) => {
-    const normalized = value?.trim().replace(/\/$/, "");
-    if (normalized) unique.add(normalized);
-  };
-  add(process.env.BACKEND_API_BASE_URL);
-  add("http://backend:8000");
-  add("http://host.docker.internal:8000");
-  add("http://localhost:8000");
-  add("http://127.0.0.1:8000");
-  return Array.from(unique);
-}
-
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+import { NextRequest } from "next/server";
+import { proxyAuthGet } from "../../shared";
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get("mpu_token")?.value;
-  if (!token) return NextResponse.json({ error: { message: "Not logged in" } }, { status: 401 });
+  return proxyAuthGet(request, "/api/auth/me");
+}
 
-  const backendCandidates = resolveBackendCandidates();
-  let lastFailedBaseUrl: string | null = null;
+// Some clients/devtools/plugins accidentally call POST/HEAD on this endpoint.
+// Keep behavior graceful instead of returning 405 noise.
+export async function POST(request: NextRequest) {
+  return proxyAuthGet(request, "/api/auth/me");
+}
 
-  for (const baseUrl of backendCandidates) {
-    try {
-      const resp = await fetchWithTimeout(
-        `${baseUrl}/api/auth/me`,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        },
-        FETCH_TIMEOUT_MS,
-      );
-
-      const bodyText = await resp.text();
-      return new NextResponse(bodyText, {
-        status: resp.status,
-        headers: { "content-type": resp.headers.get("content-type") ?? "application/json" },
-      });
-    } catch {
-      lastFailedBaseUrl = baseUrl;
-    }
-  }
-
-  return NextResponse.json(
-    { error: { message: "Backend unavailable", details: { attempted_backend_base_urls: backendCandidates, last_failed_backend_base_url: lastFailedBaseUrl } } },
-    { status: 502 },
-  );
+export async function HEAD(request: NextRequest) {
+  return proxyAuthGet(request, "/api/auth/me");
 }

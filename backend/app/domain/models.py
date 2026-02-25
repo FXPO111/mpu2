@@ -375,6 +375,10 @@ class CheckoutIn(BaseModel):
     product_id: UUID
 
 
+class CheckoutConfirmIn(BaseModel):
+    checkout_session_id: str = Field(min_length=1)
+
+
 class ErrorEnvelope(BaseModel):
     error: dict[str, Any]
 

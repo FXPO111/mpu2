@@ -36,31 +36,43 @@ export async function POST(request: NextRequest) {
 
   const email = String(payload?.email ?? "").trim();
   const password = String(payload?.password ?? "");
-  if (!email || !password) return NextResponse.json({ error: { message: "email/password required" } }, { status: 422 });
+  const name = String(payload?.name ?? "").trim();
+  if (!email || !password || !name) return NextResponse.json({ error: { message: "email/password/name required" } }, { status: 422 });
 
   for (const baseUrl of resolveBackendCandidates()) {
     try {
-      const resp = await fetchWithTimeout(
+      const registerResp = await fetchWithTimeout(
+        `${baseUrl}/api/auth/register`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password, name }), cache: "no-store" },
+        FETCH_TIMEOUT_MS,
+      );
+
+      if ([404, 502, 503, 504].includes(registerResp.status)) continue;
+
+      const registerText = await registerResp.text();
+      if (!registerResp.ok && registerResp.status !== 409) {
+        return new NextResponse(registerText, {
+          status: registerResp.status,
+          headers: { "content-type": registerResp.headers.get("content-type") ?? "application/json" },
+        });
+      }
+
+      const loginResp = await fetchWithTimeout(
         `${baseUrl}/api/auth/login`,
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }), cache: "no-store" },
         FETCH_TIMEOUT_MS,
       );
-
-      if ([404, 502, 503, 504].includes(resp.status)) continue;
-
-      const text = await resp.text();
-      if (!resp.ok) {
-        return new NextResponse(text, {
-          status: resp.status,
-          headers: { "content-type": resp.headers.get("content-type") ?? "application/json" },
+      const loginText = await loginResp.text();
+      if (!loginResp.ok) {
+        return new NextResponse(loginText, {
+          status: loginResp.status,
+          headers: { "content-type": loginResp.headers.get("content-type") ?? "application/json" },
         });
       }
 
-      const json = JSON.parse(text);
+      const json = JSON.parse(loginText);
       const token = json?.data?.access_token;
-      if (!token) return NextResponse.json({ error: { message: "No access_token in response" } }, { status: 502 });
-
-      const res = NextResponse.json({ data: { ok: true } }, { status: 200 });
+      const res = NextResponse.json({ data: { ok: true } });
       res.cookies.set("mpu_token", String(token), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" });
       return res;
     } catch {
