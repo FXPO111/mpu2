@@ -4,9 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 
 type View = "route" | "exam" | "dossier" | "evidence";
 
-type BootstrapResp = { data: { state: "setup" | "session"; next?: { step_id: string; label: string; type: string; options?: string[]; done?: boolean } } };
+type BootstrapResp = {
+  data: { state: "setup" | "session"; next?: { step_id: string; label: string; type: string; options?: string[]; done?: boolean } };
+};
 
-type DayResp = { data: { day: { status: string; done: number; total: number; day_index: number }; tasks: Array<{ task_id: string; title: string; question: string; done: boolean; answer?: string; evaluation?: any }> } };
+type DayResp = {
+  data: {
+    day: { status: string; done: number; total: number; day_index: number };
+    tasks: Array<{ task_id: string; title: string; question: string; done: boolean; answer?: string; evaluation?: any }>;
+  };
+};
 
 export default function DashboardPage() {
   const [view, setView] = useState<View>("route");
@@ -90,7 +97,9 @@ export default function DashboardPage() {
       <h1>Кабинет</h1>
       <p>Прогресс маршрута: {routeProgress}%</p>
       <nav style={{ display: "flex", gap: 8 }}>
-        {(["route", "exam", "dossier", "evidence"] as View[]).map((tab) => <button key={tab} onClick={() => setView(tab)}>{tab}</button>)}
+        {(["route", "exam", "dossier", "evidence"] as View[]).map((tab) => (
+          <button key={tab} onClick={() => setView(tab)}>{tab}</button>
+        ))}
       </nav>
       {error ? <p>{error}</p> : null}
       {view !== "route" ? <p>Раздел в MVP.</p> : null}
