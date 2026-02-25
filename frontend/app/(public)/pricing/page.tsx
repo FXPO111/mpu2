@@ -6,6 +6,8 @@ import { useSearchParams } from "next/navigation";
 type PlanKey = "start" | "pro" | "intensive";
 type Product = { id: string; code: string; price_cents: number; currency: string; type: string };
 
+type Me = { id: string; email: string } | null;
+
 const FALLBACK_PLANS: Product[] = [
   { id: "fallback-start", code: "PLAN_START", price_cents: 23000, currency: "EUR", type: "program" },
   { id: "fallback-pro", code: "PLAN_PRO", price_cents: 70000, currency: "EUR", type: "program" },
@@ -38,6 +40,7 @@ function planFromCode(code: string): PlanKey | null {
 export default function PricingPage() {
   const params = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
+  const [me, setMe] = useState<Me>(null);
   const [showAuth, setShowAuth] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
@@ -96,10 +99,14 @@ export default function PricingPage() {
     return false;
   }
 
-  async function tryCheckoutWithRetry(productId: string, attempts = 3): Promise<boolean> {
-    for (let i = 0; i < attempts; i += 1) {
-      const started = await runCheckout(productId);
-      if (started) return true;
+  async function ensureSessionReady(): Promise<boolean> {
+    for (let i = 0; i < 5; i += 1) {
+      const meRes = await fetch("/api/client/me", { cache: "no-store" }).catch(() => null);
+      if (meRes?.ok) {
+        const meJson = await meRes.json().catch(() => null);
+        setMe(meJson?.data ?? null);
+        return true;
+      }
       await new Promise((r) => setTimeout(r, 250));
     }
     return false;
@@ -126,16 +133,29 @@ export default function PricingPage() {
       return;
     }
 
-    const started = await runCheckout(checkoutProductId);
-    if (started) return;
+    let effectiveUser = me;
+    if (!effectiveUser) {
+      const meRes = await fetch("/api/client/me", { cache: "no-store" }).catch(() => null);
+      if (meRes?.ok) {
+        const meJson = await meRes.json().catch(() => null);
+        effectiveUser = meJson?.data ?? null;
+        setMe(effectiveUser);
+      }
+    }
 
-    setPendingProductId(productId);
-    setAuthError(null);
-    setShowAuth(true);
+    if (!effectiveUser) {
+      setPendingProductId(productId);
+      setAuthError(null);
+      setShowAuth(true);
+      return;
+    }
+
+    await runCheckout(checkoutProductId);
   }
 
   async function submitAuth() {
     if (authLoading) return;
+
     const email = authForm.email.trim();
     const password = authForm.password.trim();
     const name = authForm.name.trim();
@@ -155,12 +175,12 @@ export default function PricingPage() {
 
     setAuthLoading(true);
     setAuthError(null);
+
     try {
       const path = mode === "login" ? "/api/client/login" : "/api/client/register";
-      const payload = mode === "login"
-        ? { email, password }
-        : { email, password, name: name || email.split("@")[0] };
+      const payload = mode === "login" ? { email, password } : { email, password, name: name || email.split("@")[0] };
       const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+
       if (!res.ok) {
         const json = await res.json().catch(() => ({} as any));
         const detail = Array.isArray(json?.detail) ? json.detail[0]?.msg : null;
@@ -173,6 +193,12 @@ export default function PricingPage() {
         return;
       }
 
+      const isSessionReady = await ensureSessionReady();
+      if (!isSessionReady) {
+        setAuthError("Логин не подтвердился. Попробуйте ещё раз.");
+        return;
+      }
+
       if (pendingProductId) {
         const checkoutProductId = await resolveCheckoutProductId(pendingProductId);
         if (!checkoutProductId) {
@@ -180,11 +206,8 @@ export default function PricingPage() {
           return;
         }
 
-        const started = await tryCheckoutWithRetry(checkoutProductId, 3);
-        if (!started) {
-          setAuthError("Не удалось перейти к оплате. Проверьте данные и попробуйте снова.");
-          return;
-        }
+        const started = await runCheckout(checkoutProductId);
+        if (!started) return;
       }
 
       setShowAuth(false);
@@ -203,7 +226,9 @@ export default function PricingPage() {
         {sorted.map((p) => (
           <div key={p.id} style={{ border: "1px solid #ddd", padding: 12 }}>
             <h3>{planFromCode(p.code)?.toUpperCase() ?? p.code}</h3>
-            <p>{(p.price_cents / 100).toFixed(0)} {p.currency}</p>
+            <p>
+              {(p.price_cents / 100).toFixed(0)} {p.currency}
+            </p>
             <button onClick={() => onBuy(p.id)}>Выбрать и оплатить</button>
           </div>
         ))}
@@ -217,12 +242,10 @@ export default function PricingPage() {
             setShowAuth(false);
           }}
         >
-          <div
-            style={{ background: "#fff", padding: 16, width: 360, borderRadius: 12 }}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div style={{ background: "#fff", padding: 16, width: 360, borderRadius: 12 }} onClick={(e) => e.stopPropagation()}>
             <h3>{mode === "login" ? "Войти" : "Регистрация"}</h3>
             {authError ? <p style={{ color: "#b42318" }}>{authError}</p> : null}
+
             <input
               placeholder="Email"
               value={authForm.email}
@@ -250,8 +273,11 @@ export default function PricingPage() {
                 }}
               />
             ) : null}
+
             <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-              <button onClick={() => void submitAuth()} disabled={authLoading}>{authLoading ? "Проверка..." : "Продолжить"}</button>
+              <button onClick={() => void submitAuth()} disabled={authLoading}>
+                {authLoading ? "Проверка..." : "Продолжить"}
+              </button>
               <button
                 onClick={() => {
                   if (authLoading) return;
@@ -262,7 +288,9 @@ export default function PricingPage() {
               >
                 {mode === "login" ? "Нет аккаунта" : "Уже есть аккаунт"}
               </button>
-              <button onClick={() => setShowAuth(false)} disabled={authLoading}>Закрыть</button>
+              <button onClick={() => setShowAuth(false)} disabled={authLoading}>
+                Закрыть
+              </button>
             </div>
           </div>
         </div>
