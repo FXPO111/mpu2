@@ -11,12 +11,14 @@ class SeedProductSpec:
     plan: str
     name: str
     price_cents: int
+    valid_days: int
+    ai_credits: int
 
 
 DEFAULT_PLAN_PRODUCTS: tuple[SeedProductSpec, ...] = (
-    SeedProductSpec(code="PLAN_START", plan="start", name="Start", price_cents=23000),
-    SeedProductSpec(code="PLAN_PRO", plan="pro", name="Pro", price_cents=70000),
-    SeedProductSpec(code="PLAN_INTENSIVE", plan="intensive", name="Intensive", price_cents=150000),
+    SeedProductSpec(code="PLAN_START", plan="start", name="Start", price_cents=23000, valid_days=14, ai_credits=1200),
+    SeedProductSpec(code="PLAN_PRO", plan="pro", name="Pro", price_cents=70000, valid_days=30, ai_credits=8000),
+    SeedProductSpec(code="PLAN_INTENSIVE", plan="intensive", name="Intensive", price_cents=150000, valid_days=45, ai_credits=15000),
 )
 
 
@@ -58,7 +60,7 @@ def seed_products(db: Session, *, only_missing: bool = False) -> dict[str, int]:
                     name_en=spec.name,
                     price_cents=spec.price_cents,
                     currency="EUR",
-                    metadata_json={"plan": spec.plan, "seed_tag": SEED_TAG},
+                    metadata_json={"plan": spec.plan, "valid_days": spec.valid_days, "ai_credits": spec.ai_credits, "seed_tag": SEED_TAG},
                     active=True,
                 )
             )
@@ -66,7 +68,7 @@ def seed_products(db: Session, *, only_missing: bool = False) -> dict[str, int]:
             continue
 
         changed = False
-        if not product.type:
+        if product.type != "program":
             product.type = "program"
             changed = True
         if not product.name_de:
@@ -83,8 +85,14 @@ def seed_products(db: Session, *, only_missing: bool = False) -> dict[str, int]:
             changed = True
 
         metadata = dict(product.metadata_json or {})
-        if not metadata.get("plan"):
+        if metadata.get("plan") != spec.plan:
             metadata["plan"] = spec.plan
+            changed = True
+        if int(metadata.get("valid_days", 0) or 0) != spec.valid_days:
+            metadata["valid_days"] = spec.valid_days
+            changed = True
+        if int(metadata.get("ai_credits", -1) or 0) != spec.ai_credits:
+            metadata["ai_credits"] = spec.ai_credits
             changed = True
         if not metadata.get("seed_tag"):
             metadata["seed_tag"] = SEED_TAG

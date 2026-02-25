@@ -6,6 +6,8 @@ from fastapi import Depends, Header
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+
+from app.db.repo import Repo
 from app.domain.models import APIError, User
 from app.security.auth import decode_access_token
 
@@ -67,3 +69,17 @@ def require_roles(*roles: str):
         return user
 
     return checker
+
+def require_program_access(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    repo = Repo(db)
+    if not repo.has_active_entitlement(user.id, "program_access"):
+        raise APIError(
+            "NO_PROGRAM_ACCESS",
+            "Program access required",
+            {"pricing_url": "/pricing"},
+            status_code=402,
+        )
+    return user
