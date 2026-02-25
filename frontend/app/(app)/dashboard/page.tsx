@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Button } from "@/components/ui/Button";
 
 type PlanKey = "start" | "pro" | "intensive";
 type Task = { id: string; text: string; done: boolean };
-type DayStatus = "empty" | "partial" | "done";
 type DashboardView = "overview" | "route" | "exam" | "dossier" | "evidence";
 
 type Artifact = { id: "case" | "risk" | "interview" | "evidence"; pct: number };
@@ -63,6 +61,37 @@ const EXAM_QUESTIONS = [
   "Опишите ваш план предотвращения повтора по шагам.",
 ];
 
+function Button({
+  children,
+  onClick,
+  size,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  size?: "sm" | "md";
+}) {
+  const isSmall = size === "sm";
+  return (
+    <button
+      className="btn"
+      onClick={onClick}
+      style={{
+        border: "1px solid rgba(0,0,0,.06)",
+        borderRadius: 16,
+        background: "linear-gradient(180deg, #2bc866 0%, #1fb557 100%)",
+        color: "#fff",
+        fontWeight: 800,
+        letterSpacing: "0.01em",
+        padding: isSmall ? "8px 14px" : "11px 18px",
+        boxShadow: "0 10px 22px rgba(34,197,94,.22)",
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 function toView(v: string | null): DashboardView {
   if (v === "route" || v === "exam" || v === "dossier" || v === "evidence" || v === "overview") return v;
   return "overview";
@@ -82,6 +111,7 @@ export default function DashboardPage() {
   const params = useSearchParams();
   const view = toView(params.get("view"));
 
+  const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState<PlanKey>("start");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [focus, setFocus] = useState("алкоголь");
@@ -106,71 +136,90 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const p = localStorage.getItem(STORAGE.plan);
-    if (p === "start" || p === "pro" || p === "intensive") setPlan(p);
-
-    try {
-      const d = JSON.parse(localStorage.getItem(STORAGE.diagnostic) || "{}") as { reasons?: string[] };
-      if (d.reasons?.[0]) setFocus(d.reasons[0].toLowerCase());
-    } catch {
-      // ignore
-    }
-
-    const saved = localStorage.getItem(STORAGE.session);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as {
-          tasks: Task[];
-          dayRuns: DayRun[];
-          sessions: SessionCard[];
-          examIndex: number;
-          examHistory: { q: string; a: string; score: number; fix: string }[];
-          dossier: Dossier;
-          evidence: Evidence;
-        };
-
-        if (parsed.tasks?.length) setTasks(parsed.tasks);
-        if (parsed.dayRuns?.length) setDayRuns(parsed.dayRuns);
-        if (parsed.sessions?.length) setSessions(parsed.sessions);
-        if (typeof parsed.examIndex === "number") setExamIndex(parsed.examIndex);
-        if (parsed.examHistory?.length) setExamHistory(parsed.examHistory);
-        if (parsed.dossier) setDossier(parsed.dossier);
-        if (parsed.evidence) setEvidence(parsed.evidence);
+    (async () => {
+      const meRes = await fetch("/api/client/me", { cache: "no-store" });
+      const meJson = await meRes.json().catch(() => null);
+      if (!meRes.ok || !meJson?.data?.id) {
+        window.location.href = "/pricing";
         return;
+      }
+
+      const statusRes = await fetch("/api/client/payments/status", { cache: "no-store" }).catch(() => null);
+      const statusJson = await statusRes?.json().catch(() => null);
+      if (!statusRes?.ok || !statusJson?.data?.program_active) {
+        window.location.href = "/pricing";
+        return;
+      }
+
+      if (typeof window === "undefined") return;
+
+      const p = localStorage.getItem(STORAGE.plan);
+      if (p === "start" || p === "pro" || p === "intensive") setPlan(p);
+
+      try {
+        const d = JSON.parse(localStorage.getItem(STORAGE.diagnostic) || "{}") as { reasons?: string[] };
+        if (d.reasons?.[0]) setFocus(d.reasons[0].toLowerCase());
       } catch {
         // ignore
       }
-    }
 
-    setTasks([
-      { id: "t1", text: "Check-in: состояние 1–10", done: false },
-      { id: "t2", text: "Одна задача дня", done: false },
-      { id: "t3", text: "Мини-экзамен (2–3 вопроса)", done: false },
-    ]);
+      const saved = localStorage.getItem(STORAGE.session);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved) as {
+            tasks: Task[];
+            dayRuns: DayRun[];
+            sessions: SessionCard[];
+            examIndex: number;
+            examHistory: { q: string; a: string; score: number; fix: string }[];
+            dossier: Dossier;
+            evidence: Evidence;
+          };
 
-    setDayRuns(
-      Array.from({ length: 30 }, (_, i) => ({
-        day: i + 1,
-        checkin: { anxiety: 5, tension: 5, confidence: 5, note: "", done: false },
-        task: { text: "Коротко опишите, что делаете вместо старого паттерна.", done: false },
-        exam: { done: false, answers: [] },
-      })),
-    );
+          if (parsed.tasks?.length) setTasks(parsed.tasks);
+          if (parsed.dayRuns?.length) setDayRuns(parsed.dayRuns);
+          if (parsed.sessions?.length) setSessions(parsed.sessions);
+          if (typeof parsed.examIndex === "number") setExamIndex(parsed.examIndex);
+          if (parsed.examHistory?.length) setExamHistory(parsed.examHistory);
+          if (parsed.dossier) setDossier(parsed.dossier);
+          if (parsed.evidence) setEvidence(parsed.evidence);
+          setLoading(false);
+          return;
+        } catch {
+          // ignore
+        }
+      }
 
-    setSessions([
-      { id: 1, title: "Intake + таймлайн", goal: "Собрать факты и порядок событий", result: "Таймлайн v1", status: "not_started" },
-      { id: 2, title: "Причина и ответственность", goal: "Убрать оправдания", result: "Четкая позиция", status: "not_started" },
-      { id: 3, title: "Разбор эпизода №1", goal: "Найти триггеры и точку выбора", result: "Карта эпизода", status: "not_started" },
-      { id: 4, title: "Разбор эпизода №2", goal: "Сравнить паттерны", result: "Список повторов", status: "not_started" },
-      { id: 5, title: "Риск-профиль", goal: "Ранние признаки и сценарии", result: "Профиль риска", status: "not_started" },
-      { id: 6, title: "План изменений", goal: "Режим, среда, контроль", result: "План действий", status: "not_started" },
-      { id: 7, title: "План предотвращения", goal: "Закрыть риск высокого давления", result: "Готовый план", status: "not_started" },
-      { id: 8, title: "Интервью: базовый прогон", goal: "Проверить ядро ответов", result: "База ответов", status: "not_started" },
-      { id: 9, title: "Интервью: провокации", goal: "Закрыть слабые места", result: "Финальные правки", status: "not_started" },
-      { id: 10, title: "Финальный прогон", goal: "Собрать папку готовности", result: "Версия v1", status: "not_started" },
-    ]);
+      setTasks([
+        { id: "t1", text: "Check-in: состояние 1–10", done: false },
+        { id: "t2", text: "Одна задача дня", done: false },
+        { id: "t3", text: "Мини-экзамен (2–3 вопроса)", done: false },
+      ]);
+
+      setDayRuns(
+        Array.from({ length: 30 }, (_, i) => ({
+          day: i + 1,
+          checkin: { anxiety: 5, tension: 5, confidence: 5, note: "", done: false },
+          task: { text: "Коротко опишите, что делаете вместо старого паттерна.", done: false },
+          exam: { done: false, answers: [] },
+        })),
+      );
+
+      setSessions([
+        { id: 1, title: "Intake + таймлайн", goal: "Собрать факты и порядок событий", result: "Таймлайн v1", status: "not_started" },
+        { id: 2, title: "Причина и ответственность", goal: "Убрать оправдания", result: "Четкая позиция", status: "not_started" },
+        { id: 3, title: "Разбор эпизода №1", goal: "Найти триггеры и точку выбора", result: "Карта эпизода", status: "not_started" },
+        { id: 4, title: "Разбор эпизода №2", goal: "Сравнить паттерны", result: "Список повторов", status: "not_started" },
+        { id: 5, title: "Риск-профиль", goal: "Ранние признаки и сценарии", result: "Профиль риска", status: "not_started" },
+        { id: 6, title: "План изменений", goal: "Режим, среда, контроль", result: "План действий", status: "not_started" },
+        { id: 7, title: "План предотвращения", goal: "Закрыть риск высокого давления", result: "Готовый план", status: "not_started" },
+        { id: 8, title: "Интервью: базовый прогон", goal: "Проверить ядро ответов", result: "База ответов", status: "not_started" },
+        { id: 9, title: "Интервью: провокации", goal: "Закрыть слабые места", result: "Финальные правки", status: "not_started" },
+        { id: 10, title: "Финальный прогон", goal: "Собрать папку готовности", result: "Версия v1", status: "not_started" },
+      ]);
+
+      setLoading(false);
+    })();
   }, []);
 
   useEffect(() => {
@@ -239,7 +288,6 @@ export default function DashboardPage() {
     return 3;
   }, [activeDayRun]);
 
-
   const submitExam = () => {
     const answer = examAnswer.trim();
     if (!answer) return;
@@ -253,6 +301,16 @@ export default function DashboardPage() {
     setExamAnswer("");
   };
 
+  if (loading) {
+    return (
+      <main className="cabinet-v2-main">
+        <section className="cabinet-v2-hero">
+          <h1 className="cabinet-v2-title">Загрузка кабинета…</h1>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="cabinet-v2-main">
       <section className="cabinet-v2-hero">
@@ -263,10 +321,18 @@ export default function DashboardPage() {
         <div className="cabinet-v2-chips">
           <span className="chip">План: {PLAN_LABEL[plan]}</span>
           <span className="chip">День: {Math.max(1, completedDays + 1)}/30</span>
-          <span className="chip">Тема: {focus}</span>
+          <span className="chip">Фокус: {focus}</span>
           <span className="chip">Прогресс: {overallProgress}%</span>
         </div>
       </section>
+
+      <nav className="cabinet-v2-nav">
+        <a className={`navlink ${view === "overview" ? "active" : ""}`} href="/dashboard?view=overview">Обзор</a>
+        <a className={`navlink ${view === "route" ? "active" : ""}`} href="/dashboard?view=route">Маршрут</a>
+        <a className={`navlink ${view === "exam" ? "active" : ""}`} href="/dashboard?view=exam">Экзамен</a>
+        <a className={`navlink ${view === "dossier" ? "active" : ""}`} href="/dashboard?view=dossier">Досье</a>
+        <a className={`navlink ${view === "evidence" ? "active" : ""}`} href="/dashboard?view=evidence">Доказательства</a>
+      </nav>
 
       {view === "overview" ? (
         <>
@@ -282,11 +348,11 @@ export default function DashboardPage() {
               <p className="small">Оценка готовности обновляется по заполненным разделам, сессиям и экзамену.</p>
             </div>
 
-            <div className="cabinet-v2-status cabinet-v2-next-step">
+            <div className="cabinet-v2-status">
               <h2 className="h3">Следующий шаг</h2>
               <p className="small">Один целевой шаг на сегодня: без перегруза.</p>
               <a href={nextStepHref} style={{ marginTop: 12, display: "inline-block" }}>
-                <Button className="btn-primary">Начать</Button>
+                <Button>Начать</Button>
               </a>
             </div>
 
@@ -300,10 +366,7 @@ export default function DashboardPage() {
                     className="cabinet-v2-circle-item"
                     aria-label={`${ARTIFACT_LABEL[a.id]} ${a.pct}%`}
                   >
-                    <div
-                      className="cabinet-v2-circle"
-                      style={{ ["--pct" as any]: a.pct } as React.CSSProperties}
-                    >
+                    <div className="cabinet-v2-circle">
                       <strong>{a.pct}%</strong>
                     </div>
                     <span>{ARTIFACT_LABEL[a.id]}</span>
@@ -320,11 +383,11 @@ export default function DashboardPage() {
           <h2 className="h3">Маршрут 30 дней</h2>
           <p className="small">Дни идут последовательно: сначала завершается текущий день, затем открывается следующий.</p>
 
-
           <div className="cabinet-v2-route-top">
             <div>
               <p className="small">Активный день</p>
               <strong>День {activeDay}</strong>
+              <p className="small">Этап: {activeDayStep}/3</p>
             </div>
             <div>
               <p className="small">Пройдено дней</p>
@@ -335,97 +398,90 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="cabinet-v2-route-layout">
-            <aside className="cabinet-v2-route-rail">
-              <div className="cabinet-v2-stage-line cabinet-v2-stage-rail" role="list" aria-label="Этапы дня">
-                <div className={`cabinet-v2-stage-pill ${activeDayStep === 1 ? "active" : activeDayRun?.checkin.done ? "done" : ""}`}>
-                  <span className="cabinet-v2-stage-title">Оценка состояния</span>
-                  <span className="cabinet-v2-stage-sub">3 шкалы + короткая заметка</span>
-                </div>
-                <div className={`cabinet-v2-stage-pill ${activeDayStep === 2 ? "active" : activeDayRun?.task.done ? "done" : ""}`}>
-                  <span className="cabinet-v2-stage-title">Задача дня</span>
-                  <span className="cabinet-v2-stage-sub">1 действие без перегруза</span>
-                </div>
+          <div className="cabinet-v2-stage-line" role="list" aria-label="Этапы дня">
+            <div className={`cabinet-v2-stage-pill ${activeDayStep === 1 ? "active" : activeDayRun?.checkin.done ? "done" : ""}`}>
+              1. Оценка состояния
+            </div>
+            <div className={`cabinet-v2-stage-pill ${activeDayStep === 2 ? "active" : activeDayRun?.task.done ? "done" : ""}`}>
+              2. Задача дня
+            </div>
+            <div className={`cabinet-v2-stage-pill ${activeDayStep === 3 ? "active" : activeDayRun?.exam.done ? "done" : ""}`}>
+              3. Мини-экзамен
+            </div>
+          </div>
 
-                <div className={`cabinet-v2-stage-pill ${activeDayStep === 3 ? "active" : activeDayRun?.exam.done ? "done" : ""}`}>
-                  <span className="cabinet-v2-stage-title">Мини-экзамен</span>
-                  <span className="cabinet-v2-stage-sub">1 вопрос по плану предотвращения</span>
-                </div>
-              </div>
-              <p className="small cabinet-v2-route-rail-hint">Следующий шаг откроется после сохранения текущего.</p>
-            </aside>
+          {activeDayRun ? (
+            <div className="cabinet-v2-dayrun">
+              <h3 className="h3">День {activeDayRun.day}</h3>
+              <p className="small" style={{ marginTop: 2 }}>
+                Шаг {activeDayStep}/3
+              </p>
 
-            <div className="cabinet-v2-route-content">
-              {activeDayRun ? (
-                <div className="cabinet-v2-dayrun">
-                  <div className="cabinet-v2-task-list" style={{ marginTop: 10 }}>
-                    {activeDayStep === 1 ? (
-                      <div className="cabinet-v2-task-item cabinet-v2-stage-panel">
-                        <div style={{ width: "100%" }}>
-                          <div className="cabinet-v2-step-head">
-                            <strong>Оценка состояния</strong>
-                            <span className="small">Шаг 1/3</span>
-                          </div>
-                          <p className="small">Отметьте состояние по шкале и добавьте 1–2 предложения по самочувствию.</p>
+              <div className="cabinet-v2-task-list" style={{ marginTop: 10 }}>
+                {activeDayStep === 1 ? (
+                  <div className="cabinet-v2-task-item cabinet-v2-stage-panel">
+                    <div style={{ width: "100%" }}>
+                      <strong>Оценка состояния</strong>
+                      <p className="small">Отметьте состояние по шкале и добавьте 1–2 предложения по самочувствию.</p>
 
-                          <div className="cabinet-v2-inline-fields">
-                            <label className="cabinet-v2-range-field">
-                              <span>Тревога</span>
-                              <input
-                                type="range"
-                                min={1}
-                                max={10}
-                                value={activeDayRun.checkin.anxiety}
-                                style={rangeFillStyle(activeDayRun.checkin.anxiety)}
-                                onChange={(e) =>
-                                  setDayRuns((prev) =>
-                                    prev.map((r) =>
-                                      r.day === activeDay ? { ...r, checkin: { ...r.checkin, anxiety: Number(e.target.value) || 1 } } : r,
-                                    ),
-                                  )
-                                }
-                              />
-                              <strong>{activeDayRun.checkin.anxiety}/10</strong>
-                            </label>
+                      <div className="cabinet-v2-inline-fields">
+                        <label className="cabinet-v2-range-field">
+                          <span>Тревога</span>
+                          <input
+                            type="range"
+                            min={1}
+                            max={10}
+                            value={activeDayRun.checkin.anxiety}
+                            style={rangeFillStyle(activeDayRun.checkin.anxiety)}
+                            onChange={(e) =>
+                              setDayRuns((prev) =>
+                                prev.map((r) =>
+                                  r.day === activeDay ? { ...r, checkin: { ...r.checkin, anxiety: Number(e.target.value) || 1 } } : r,
+                                ),
+                              )
+                            }
+                          />
+                          <strong>{activeDayRun.checkin.anxiety}/10</strong>
+                        </label>
 
-                            <label className="cabinet-v2-range-field">
-                              <span>Напряжение</span>
-                              <input
-                                type="range"
-                                min={1}
-                                max={10}
-                                value={activeDayRun.checkin.tension}
-                                style={rangeFillStyle(activeDayRun.checkin.tension)}
-                                onChange={(e) =>
-                                  setDayRuns((prev) =>
-                                    prev.map((r) =>
-                                      r.day === activeDay ? { ...r, checkin: { ...r.checkin, tension: Number(e.target.value) || 1 } } : r,
-                                    ),
-                                  )
-                                }
-                              />
-                              <strong>{activeDayRun.checkin.tension}/10</strong>
-                            </label>
+                        <label className="cabinet-v2-range-field">
+                          <span>Напряжение</span>
+                          <input
+                            type="range"
+                            min={1}
+                            max={10}
+                            value={activeDayRun.checkin.tension}
+                            style={rangeFillStyle(activeDayRun.checkin.tension)}
+                            onChange={(e) =>
+                              setDayRuns((prev) =>
+                                prev.map((r) =>
+                                  r.day === activeDay ? { ...r, checkin: { ...r.checkin, tension: Number(e.target.value) || 1 } } : r,
+                                ),
+                              )
+                            }
+                          />
+                          <strong>{activeDayRun.checkin.tension}/10</strong>
+                        </label>
 
-                            <label className="cabinet-v2-range-field">
-                              <span>Уверенность</span>
-                              <input
-                                type="range"
-                                min={1}
-                                max={10}
-                                value={activeDayRun.checkin.confidence}
-                                style={rangeFillStyle(activeDayRun.checkin.confidence)}
-                                onChange={(e) =>
-                                  setDayRuns((prev) =>
-                                    prev.map((r) =>
-                                      r.day === activeDay ? { ...r, checkin: { ...r.checkin, confidence: Number(e.target.value) || 1 } } : r,
-                                    ),
-                                  )
-                                }
-                              />
-                              <strong>{activeDayRun.checkin.confidence}/10</strong>
-                            </label>
-                          </div>
+                        <label className="cabinet-v2-range-field">
+                          <span>Уверенность</span>
+                          <input
+                            type="range"
+                            min={1}
+                            max={10}
+                            value={activeDayRun.checkin.confidence}
+                            style={rangeFillStyle(activeDayRun.checkin.confidence)}
+                            onChange={(e) =>
+                              setDayRuns((prev) =>
+                                prev.map((r) =>
+                                  r.day === activeDay ? { ...r, checkin: { ...r.checkin, confidence: Number(e.target.value) || 1 } } : r,
+                                ),
+                              )
+                            }
+                          />
+                          <strong>{activeDayRun.checkin.confidence}/10</strong>
+                        </label>
+                      </div>
 
                       <textarea
                         className="cabinet-v2-input"
@@ -440,11 +496,10 @@ export default function DashboardPage() {
 
                       <Button
                         size="sm"
-                        onClick={() =>
-                          setDayRuns((prev) =>
-                            prev.map((r) => (r.day === activeDay ? { ...r, checkin: { ...r.checkin, done: true } } : r)),
-                          )
-                        }
+                        onClick={() => {
+                          setDayRuns((prev) => prev.map((r) => (r.day === activeDay ? { ...r, checkin: { ...r.checkin, done: true } } : r)));
+                          setTasks((prev) => prev.map((t) => (t.id === "t1" ? { ...t, done: true } : t)));
+                        }}
                       >
                         Сохранить и дальше
                       </Button>
@@ -455,10 +510,7 @@ export default function DashboardPage() {
                 {activeDayStep === 2 ? (
                   <div className="cabinet-v2-task-item cabinet-v2-stage-panel">
                     <div style={{ width: "100%" }}>
-                      <div className="cabinet-v2-step-head">
-                        <strong>Задача дня</strong>
-                        <span className="small">Шаг 2/3</span>
-                      </div>
+                      <strong>Задача дня</strong>
                       <p className="small">Один короткий фокус на сегодня.</p>
 
                       <textarea
@@ -473,11 +525,10 @@ export default function DashboardPage() {
 
                       <Button
                         size="sm"
-                        onClick={() =>
-                          setDayRuns((prev) =>
-                            prev.map((r) => (r.day === activeDay ? { ...r, task: { ...r.task, done: true } } : r)),
-                          )
-                        }
+                        onClick={() => {
+                          setDayRuns((prev) => prev.map((r) => (r.day === activeDay ? { ...r, task: { ...r.task, done: true } } : r)));
+                          setTasks((prev) => prev.map((t) => (t.id === "t2" ? { ...t, done: true } : t)));
+                        }}
                       >
                         Сохранить и дальше
                       </Button>
@@ -488,10 +539,7 @@ export default function DashboardPage() {
                 {activeDayStep === 3 ? (
                   <div className="cabinet-v2-task-item cabinet-v2-stage-panel">
                     <div style={{ width: "100%" }}>
-                      <div className="cabinet-v2-step-head">
-                        <strong>Мини-экзамен</strong>
-                        <span className="small">Шаг 3/3</span>
-                      </div>
+                      <strong>Мини-экзамен</strong>
                       <p className="small">Вопрос: {EXAM_QUESTIONS[(activeDay - 1) % EXAM_QUESTIONS.length]}</p>
 
                       <textarea
@@ -506,13 +554,12 @@ export default function DashboardPage() {
 
                       <Button
                         size="sm"
-                        onClick={() =>
-                          setDayRuns((prev) =>
-                            prev.map((r) => (r.day === activeDay ? { ...r, exam: { ...r.exam, done: true } } : r)),
-                          )
-                        }
+                        onClick={() => {
+                          setDayRuns((prev) => prev.map((r) => (r.day === activeDay ? { ...r, exam: { ...r.exam, done: true } } : r)));
+                          setTasks((prev) => prev.map((t) => (t.id === "t3" ? { ...t, done: true } : t)));
+                        }}
                       >
-                        Завершить день
+                        Завершить Day Run
                       </Button>
                     </div>
                   </div>
@@ -520,10 +567,7 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : null}
-        </div>
-      </div>
-    </section>
-
+        </section>
       ) : null}
 
       {view === "exam" ? (
