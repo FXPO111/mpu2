@@ -38,38 +38,30 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
     <>
       <header className="public-header compact-header">
         <div className="topstrip">
-          <div className="container topstrip-inner">
+          <div className="container topstrip-inner public-topstrip-inner">
             <span>MPU Praxis DP • структурированная онлайн-подготовка к MPU</span>
             <a href="mailto:info@mpu-praxis-dp.de">info@mpu-praxis-dp.de</a>
           </div>
         </div>
-
-        <div className="container public-header-inner">
+        <div className="container public-header-inner public-header-inner-polished">
           <Link href="/" className="brand">
             <span className="brand-dot" />
             MPU Praxis DP
           </Link>
-
-          <nav className="nav">
+          <nav className="nav public-nav-polished" aria-label="Основная навигация">
             {MENU.map((item) => (
               <Link key={item.href} href={item.href} className="navlink">
                 {item.label}
               </Link>
             ))}
           </nav>
-          <div className="public-header-controls">
-            <div className="header-actions">
+          <div className="public-header-controls public-header-controls-polished">
+            <div className="header-actions header-actions-polished">
               <Link href="/diagnostic">
                 <Button size="sm">Начать диагностику</Button>
               </Link>
-              <Link href="/#pricing">
-                <Button variant="secondary" size="sm">
-                  Тарифы
-                </Button>
-              </Link>
             </div>
-
-            <div className="public-account-wrap">
+            <div className="public-account-wrap public-account-wrap-polished">
               <AccountMenu publicMode />
             </div>
           </div>
@@ -115,6 +107,107 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
 
         <div className="footer-bottom">© {new Date().getFullYear()} MPU Praxis DP</div>
       </footer>
+      <style jsx>{`
+        .public-topstrip-inner {
+          gap: 20px;
+          flex-wrap: wrap;
+        }
+
+        .public-header-inner-polished {
+          grid-template-columns: auto minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 18px;
+        }
+
+        .public-nav-polished {
+          justify-content: center;
+          flex-wrap: nowrap;
+          white-space: nowrap;
+          overflow-x: auto;
+          padding-bottom: 2px;
+          scrollbar-width: none;
+        }
+
+        .public-nav-polished::-webkit-scrollbar {
+          display: none;
+        }
+
+        .public-header-controls-polished {
+          margin-left: auto;
+          gap: 10px;
+        }
+
+        .header-actions-polished {
+          flex: 0 0 auto;
+        }
+
+        .public-account-wrap-polished {
+          min-width: 0;
+          flex: 0 0 auto;
+        }
+
+        @media (max-width: 1220px) {
+          .public-header-inner-polished {
+            grid-template-columns: auto 1fr;
+            grid-template-areas:
+              "brand controls"
+              "nav nav";
+            row-gap: 10px;
+          }
+
+          .public-header-inner-polished :global(.brand) {
+            grid-area: brand;
+          }
+
+          .public-header-inner-polished :global(.public-header-controls-polished) {
+            grid-area: controls;
+          }
+
+          .public-nav-polished {
+            grid-area: nav;
+          }
+        }
+
+        @media (max-width: 760px) {
+          .public-header-inner-polished {
+            grid-template-columns: 1fr;
+            grid-template-areas:
+              "brand"
+              "controls"
+              "nav";
+            gap: 10px;
+          }
+
+          .public-header-controls-polished {
+            width: 100%;
+            justify-content: space-between;
+            margin-left: 0;
+            flex-wrap: wrap;
+          }
+
+          .header-actions-polished {
+            width: 100%;
+          }
+
+          .header-actions-polished :global(a) {
+            width: 100%;
+          }
+
+          .header-actions-polished :global(.btn) {
+            width: 100%;
+          }
+
+          .public-account-wrap-polished {
+            width: 100%;
+            justify-content: flex-start;
+          }
+
+          .public-nav-polished {
+            justify-content: flex-start;
+            flex-wrap: nowrap;
+          }
+        }
+      `}</style>
     </>
   );
 }
