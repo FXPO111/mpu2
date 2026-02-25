@@ -24,11 +24,11 @@ def _update(code: str, plan: str, valid_days: int, ai_credits: int) -> None:
               type = 'program',
               metadata = COALESCE(metadata::jsonb, '{}'::jsonb)
                 || jsonb_build_object(
-                     'plan', :plan,
-                     'valid_days', :valid_days,
-                     'ai_credits', :ai_credits
+                     'plan', CAST(:plan AS text),
+                     'valid_days', CAST(:valid_days AS integer),
+                     'ai_credits', CAST(:ai_credits AS integer)
                    )
-            WHERE code = :code
+            WHERE code = CAST(:code AS text)
             """
         ),
         {

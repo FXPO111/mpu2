@@ -136,7 +136,6 @@ export default function PricingPage() {
 
   async function submitAuth() {
     if (authLoading) return;
-
     const email = authForm.email.trim();
     const password = authForm.password.trim();
     const name = authForm.name.trim();

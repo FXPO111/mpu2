@@ -75,7 +75,7 @@ export async function proxyAuthPost(request: NextRequest, backendPath: string) {
       if (isRetryableStatus(resp.status)) continue;
       return new NextResponse(await resp.text(), {
         status: resp.status,
-       headers: { "content-type": resp.headers.get("content-type") ?? "application/json" },
+        headers: { "content-type": resp.headers.get("content-type") ?? "application/json" },
       });
     } catch {
       // try next
@@ -88,11 +88,7 @@ export async function proxyAuthPost(request: NextRequest, backendPath: string) {
 export async function proxyPublicGet(backendPath: string) {
   for (const baseUrl of resolveBackendCandidates()) {
     try {
-      const resp = await fetchWithTimeout(
-        `${baseUrl}${backendPath}`,
-        { method: "GET", cache: "no-store" },
-        FETCH_TIMEOUT_MS,
-      );
+      const resp = await fetchWithTimeout(`${baseUrl}${backendPath}`, { method: "GET", cache: "no-store" }, FETCH_TIMEOUT_MS);
       if (isRetryableStatus(resp.status)) continue;
       return new NextResponse(await resp.text(), {
         status: resp.status,
