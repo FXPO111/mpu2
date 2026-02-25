@@ -57,20 +57,21 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
+          <div className="public-header-controls">
+            <div className="header-actions">
+              <Link href="/diagnostic">
+                <Button size="sm">Начать диагностику</Button>
+              </Link>
+              <Link href="/#pricing">
+                <Button variant="secondary" size="sm">
+                  Тарифы
+                </Button>
+              </Link>
+            </div>
 
-          <div className="header-actions">
-            <Link href="/diagnostic">
-              <Button size="sm">Начать диагностику</Button>
-            </Link>
-            <Link href="/#pricing">
-              <Button variant="secondary" size="sm">
-                Тарифы
-              </Button>
-            </Link>
-          </div>
-
-          <div className="public-account-wrap">
-            <AccountMenu publicMode />
+            <div className="public-account-wrap">
+              <AccountMenu publicMode />
+            </div>
           </div>
         </div>
       </header>

@@ -62,7 +62,6 @@ export async function POST(request: NextRequest) {
 
       const res = NextResponse.json({ data: { ok: true } }, { status: 200 });
       res.cookies.set("mpu_token", String(token), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" });
-
       return res;
     } catch {
       // try next
