@@ -90,3 +90,4 @@ def downgrade() -> None:
         ),
         {"seed_tag": SEED_TAG},
     )
+
