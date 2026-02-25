@@ -99,3 +99,4 @@ export async function proxyPublicGet(backendPath: string) {
   }
   return NextResponse.json({ error: { message: "Backend unavailable" } }, { status: 502 });
 }
+

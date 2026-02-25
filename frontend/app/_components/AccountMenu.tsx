@@ -50,3 +50,4 @@ export default function AccountMenu({ compact = false, publicMode = false }: { c
     </div>
   );
 }
+
