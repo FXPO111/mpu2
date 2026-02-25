@@ -80,6 +80,29 @@ def _entitlement_for_product(product) -> Tuple[str, int, int | None]:
     )
 
 
+def _program_metadata(product) -> tuple[int, int]:
+    meta = getattr(product, "metadata_json", None) or {}
+    valid_days = _int_meta(meta, "valid_days", 0)
+    ai_credits = _int_meta(meta, "ai_credits", 0)
+
+    if valid_days <= 0:
+        raise APIError(
+            "BAD_PRODUCT_METADATA",
+            "Program valid_days must be > 0",
+            {"valid_days": valid_days},
+            status_code=422,
+        )
+    if ai_credits < 0:
+        raise APIError(
+            "BAD_PRODUCT_METADATA",
+            "Program ai_credits must be >= 0",
+            {"ai_credits": ai_credits},
+            status_code=422,
+        )
+
+    return valid_days, ai_credits
+
+
 def apply_paid_event(db: Session, provider_ref: str) -> None:
     """
     Idempotent: if order already marked paid, exits.
@@ -99,14 +122,29 @@ def apply_paid_event(db: Session, provider_ref: str) -> None:
     if not product or not getattr(product, "active", True):
         raise APIError("PRODUCT_NOT_FOUND", "Product not found or inactive", status_code=404)
 
-    kind, qty_total, valid_days = _entitlement_for_product(product)
-
-    ent = repo.grant_entitlement_once(order, kind, qty_total)
-
-    # Ensure valid_from is set to "now" and valid_to per product metadata
     now = _now_utc()
-    ent.valid_from = now
-    if valid_days is not None and ent.valid_to is None:
-        ent.valid_to = now + timedelta(days=int(valid_days))
 
-    db.flush()
+    if product.type == "program":
+        valid_days, ai_credits = _program_metadata(product)
+        valid_to = now + timedelta(days=int(valid_days))
+
+        access = repo.grant_entitlement_once(order, "program_access", 1)
+        access.valid_from = now
+        if access.valid_to is None:
+            access.valid_to = valid_to
+
+        if ai_credits > 0:
+            credits = repo.grant_entitlement_once(order, "ai_credits", ai_credits)
+            credits.valid_from = now
+            if credits.valid_to is None:
+                credits.valid_to = valid_to
+    else:
+        kind, qty_total, valid_days = _entitlement_for_product(product)
+
+        ent = repo.grant_entitlement_once(order, kind, qty_total)
+        ent.valid_from = now
+        if valid_days is not None and ent.valid_to is None:
+            ent.valid_to = now + timedelta(days=int(valid_days))
+
+    if db is not None:
+        db.flush()

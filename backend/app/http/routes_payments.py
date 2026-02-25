@@ -11,8 +11,13 @@ from sqlalchemy.orm import Session
 from app.db.repo import Repo
 from app.db.session import get_db
 from app.deps import get_current_user
-from app.domain.models import APIError, CheckoutIn, Order, PaymentEvent
-from app.integrations.payments_stripe import StripeError, construct_event, create_checkout_session
+from app.domain.models import APIError, CheckoutConfirmIn, CheckoutIn, Order, PaymentEvent
+from app.integrations.payments_stripe import (
+    StripeError,
+    construct_event,
+    create_checkout_session,
+    retrieve_checkout_session,
+)
 from app.services.payments import apply_paid_event
 from app.settings import settings
 
@@ -129,3 +134,48 @@ async def webhook(
         raise exc
 
     return {"data": {"received": True, "deduplicated": not is_new, "processed": processed}}
+
+
+@router.get("/status")
+def payments_status(user=Depends(get_current_user), db: Session = Depends(get_db)):
+    repo = Repo(db)
+    program_active = repo.has_active_entitlement(user.id, "program_access")
+    program_valid_to = repo.active_program_valid_to(user.id)
+
+    latest_program_order = repo.latest_paid_program_order(user.id)
+    plan = None
+    if latest_program_order and latest_program_order.product:
+        plan = (latest_program_order.product.metadata_json or {}).get("plan")
+
+    return {
+        "data": {
+            "program_active": program_active,
+            "program_valid_to": program_valid_to.isoformat() if program_valid_to else None,
+            "plan": plan,
+            "ai_credits_remaining": repo.ai_credits_remaining(user.id),
+        }
+    }
+
+
+@router.post("/confirm")
+def payments_confirm(payload: CheckoutConfirmIn, user=Depends(get_current_user), db: Session = Depends(get_db)):
+    repo = Repo(db)
+    order = repo.find_order_by_provider_ref(payload.checkout_session_id)
+    if not order or order.user_id != user.id:
+        raise APIError("ORDER_NOT_FOUND", "Order for checkout session not found", status_code=404)
+
+    if order.status != "paid":
+        try:
+            session = retrieve_checkout_session(
+                secret_key=settings.stripe_secret_key,
+                session_id=payload.checkout_session_id,
+            )
+        except StripeError as exc:
+            raise APIError("CHECKOUT_CONFIRM_FAILED", str(exc), status_code=502) from exc
+
+        if session.get("payment_status") == "paid":
+            apply_paid_event(db, payload.checkout_session_id)
+            db.commit()
+
+    program_active = repo.has_active_entitlement(user.id, "program_access")
+    return {"data": {"program_active": program_active}}

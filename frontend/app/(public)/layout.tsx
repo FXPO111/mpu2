@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import AccountMenu from "@/app/_components/AccountMenu";
 
 const MENU = [
   { href: "/#program", label: "Программа" },
@@ -57,15 +58,21 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
-          <div className="header-actions">
-            <Link href="/diagnostic">
-              <Button size="sm">Начать диагностику</Button>
-            </Link>
-            <Link href="/#pricing">
-              <Button variant="secondary" size="sm">
-                Тарифы
-              </Button>
-            </Link>
+          <div className="public-header-controls">
+            <div className="header-actions">
+              <Link href="/diagnostic">
+                <Button size="sm">Начать диагностику</Button>
+              </Link>
+              <Link href="/#pricing">
+                <Button variant="secondary" size="sm">
+                  Тарифы
+                </Button>
+              </Link>
+            </div>
+
+            <div className="public-account-wrap">
+              <AccountMenu publicMode />
+            </div>
           </div>
         </div>
       </header>
