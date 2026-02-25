@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }), cache: "no-store" },
         FETCH_TIMEOUT_MS,
       );
+
       const loginText = await loginResp.text();
       if (!loginResp.ok) {
         return new NextResponse(loginText, {

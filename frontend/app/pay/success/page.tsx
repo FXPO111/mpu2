@@ -22,5 +22,10 @@ export default function PaySuccessPage() {
     return () => clearInterval(id);
   }, []);
 
-  return <main><h1>{status}</h1><a href="/dashboard?from_checkout=1">Перейти в кабинет</a></main>;
+  return (
+    <main>
+      <h1>{status}</h1>
+      <a href="/dashboard?from_checkout=1">Перейти в кабинет</a>
+    </main>
+  );
 }

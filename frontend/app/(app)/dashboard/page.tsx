@@ -53,7 +53,7 @@ export default function DashboardPage() {
     setError(null);
     const bootRes = await fetch("/api/client/route/bootstrap", { cache: "no-store" });
     const boot = (await bootRes.json()) as BootstrapResp;
-    if (!bootRes.ok) return setError(boot?.error?.message ?? "bootstrap error");
+    if (!bootRes.ok) return setError((boot as any)?.error?.message ?? "bootstrap error");
     if (boot.data.state === "setup") {
       setSetupStep(boot.data.next ?? null);
       return;
@@ -61,7 +61,7 @@ export default function DashboardPage() {
     setSetupStep(null);
     const dayRes = await fetch("/api/client/route/day/today", { cache: "no-store" });
     const dayJson = (await dayRes.json()) as DayResp;
-    if (!dayRes.ok) return setError(dayJson?.error?.message ?? "day error");
+    if (!dayRes.ok) return setError((dayJson as any)?.error?.message ?? "day error");
     setDay(dayJson.data);
     setTaskId(dayJson.data.tasks[0]?.task_id ?? null);
   }
