@@ -18,7 +18,7 @@ depends_on = None
 SEED_TAG = "default_plans_v1"
 
 
-def _upsert(code: str, plan: str, name: str, price_cents: int) -> None:
+def _upsert(code: str, plan: str, name: str, price_cents: int, valid_days: int, ai_credits: int) -> None:
     bind = op.get_bind()
 
     upsert_stmt = sa.text(
@@ -33,7 +33,7 @@ def _upsert(code: str, plan: str, name: str, price_cents: int) -> None:
               :price_cents,
               'EUR',
               NULL,
-              jsonb_build_object('plan', :plan, 'seed_tag', :seed_tag),
+              jsonb_build_object('plan', :plan, 'valid_days', :valid_days, 'ai_credits', :ai_credits, 'seed_tag', :seed_tag),
               true
             )
             ON CONFLICT (code) DO UPDATE SET
@@ -43,7 +43,9 @@ def _upsert(code: str, plan: str, name: str, price_cents: int) -> None:
               currency = CASE WHEN products.currency IS NULL OR products.currency = '' THEN EXCLUDED.currency ELSE products.currency END,
               metadata = COALESCE(products.metadata::jsonb, '{}'::jsonb)
                 || jsonb_build_object(
-                     'plan', COALESCE(products.metadata::jsonb->>'plan', EXCLUDED.metadata::jsonb->>'plan'),
+                     'plan', EXCLUDED.metadata::jsonb->>'plan',
+                     'valid_days', EXCLUDED.metadata::jsonb->>'valid_days',
+                     'ai_credits', EXCLUDED.metadata::jsonb->>'ai_credits',
                      'seed_tag', COALESCE(products.metadata::jsonb->>'seed_tag', :seed_tag)
                    ),
               active = COALESCE(products.active, true)
@@ -59,14 +61,16 @@ def _upsert(code: str, plan: str, name: str, price_cents: int) -> None:
             "name": name,
             "price_cents": price_cents,
             "seed_tag": SEED_TAG,
+            "valid_days": valid_days,
+            "ai_credits": ai_credits,
         },
     )
 
 
 def upgrade() -> None:
-    _upsert("PLAN_START", "start", "Start", 23000)
-    _upsert("PLAN_PRO", "pro", "Pro", 70000)
-    _upsert("PLAN_INTENSIVE", "intensive", "Intensive", 150000)
+    _upsert("PLAN_START", "start", "Start", 23000, 14, 1200)
+    _upsert("PLAN_PRO", "pro", "Pro", 70000, 30, 8000)
+    _upsert("PLAN_INTENSIVE", "intensive", "Intensive", 150000, 45, 15000)
 
 
 def downgrade() -> None:
