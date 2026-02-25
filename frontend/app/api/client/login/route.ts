@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const FETCH_TIMEOUT_MS = 8000;
+const FETCH_TIMEOUT_MS = 2500;
 
 function resolveBackendCandidates(): string[] {
   const unique = new Set<string>();
@@ -9,10 +9,10 @@ function resolveBackendCandidates(): string[] {
     if (normalized) unique.add(normalized);
   };
   add(process.env.BACKEND_API_BASE_URL);
-  add("http://backend:8000");
-  add("http://host.docker.internal:8000");
-  add("http://localhost:8000");
   add("http://127.0.0.1:8000");
+  add("http://localhost:8000");
+  add("http://host.docker.internal:8000");
+  add("http://backend:8000");
   return Array.from(unique);
 }
 

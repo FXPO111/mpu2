@@ -1,16 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 
 type View = "route" | "exam" | "dossier" | "evidence";
 
-type BootstrapResp = { data: { state: "setup" | "session"; next?: { step_id: string; label: string; type: string; options?: string[]; done?: boolean } } };
+type BootstrapResp = {
+  data: { state: "setup" | "session"; next?: { step_id: string; label: string; type: string; options?: string[]; done?: boolean } };
+};
 
-type DayResp = { data: { day: { status: string; done: number; total: number; day_index: number }; tasks: Array<{ task_id: string; title: string; question: string; done: boolean; answer?: string; evaluation?: any }> } };
+type DayResp = {
+  data: {
+    day: { status: string; done: number; total: number; day_index: number };
+    tasks: Array<{ task_id: string; title: string; question: string; done: boolean; answer?: string; evaluation?: any }>;
+  };
+};
 
 export default function DashboardPage() {
-  const params = useSearchParams();
   const [view, setView] = useState<View>("route");
   const [loading, setLoading] = useState(true);
   const [setupStep, setSetupStep] = useState<any>(null);
@@ -26,34 +31,20 @@ export default function DashboardPage() {
       const meJson = await meRes.json().catch(() => null);
       if (!meRes.ok || !meJson?.data?.id) return (window.location.href = "/pricing");
 
-      const fromCheckout = params.get("from_checkout") === "1";
-      const maxAttempts = fromCheckout ? 60 : 10;
-      let active = false;
+      const statusRes = await fetch("/api/client/payments/status", { cache: "no-store" }).catch(() => null);
+      const statusJson = await statusRes?.json().catch(() => null);
+      if (!statusRes?.ok || !statusJson?.data?.program_active) return (window.location.href = "/pricing");
 
-      for (let i = 0; i < maxAttempts; i += 1) {
-        const statusRes = await fetch("/api/client/payments/status", { cache: "no-store" }).catch(() => null);
-        if (statusRes?.ok) {
-          const statusJson = await statusRes.json().catch(() => null);
-          if (statusJson?.data?.program_active) {
-            active = true;
-            break;
-          }
-        }
-
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-
-      if (!active) return (window.location.href = "/pricing");
       await loadRoute();
       setLoading(false);
     })();
-  }, [params]);
+  }, []);
 
   async function loadRoute() {
     setError(null);
     const bootRes = await fetch("/api/client/route/bootstrap", { cache: "no-store" });
     const boot = (await bootRes.json()) as BootstrapResp;
-    if (!bootRes.ok) return setError((boot as any)?.error?.message ?? "bootstrap error");
+    if (!bootRes.ok) return setError(boot?.error?.message ?? "bootstrap error");
     if (boot.data.state === "setup") {
       setSetupStep(boot.data.next ?? null);
       return;
@@ -61,7 +52,7 @@ export default function DashboardPage() {
     setSetupStep(null);
     const dayRes = await fetch("/api/client/route/day/today", { cache: "no-store" });
     const dayJson = (await dayRes.json()) as DayResp;
-    if (!dayRes.ok) return setError((dayJson as any)?.error?.message ?? "day error");
+    if (!dayRes.ok) return setError(dayJson?.error?.message ?? "day error");
     setDay(dayJson.data);
     setTaskId(dayJson.data.tasks[0]?.task_id ?? null);
   }
@@ -106,7 +97,9 @@ export default function DashboardPage() {
       <h1>Кабинет</h1>
       <p>Прогресс маршрута: {routeProgress}%</p>
       <nav style={{ display: "flex", gap: 8 }}>
-        {(["route", "exam", "dossier", "evidence"] as View[]).map((tab) => <button key={tab} onClick={() => setView(tab)}>{tab}</button>)}
+        {(["route", "exam", "dossier", "evidence"] as View[]).map((tab) => (
+          <button key={tab} onClick={() => setView(tab)}>{tab}</button>
+        ))}
       </nav>
       {error ? <p>{error}</p> : null}
       {view !== "route" ? <p>Раздел в MVP.</p> : null}

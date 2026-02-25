@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const FETCH_TIMEOUT_MS = 8000;
+const FETCH_TIMEOUT_MS = 2500;
 
 function resolveBackendCandidates(): string[] {
   const unique = new Set<string>();
@@ -9,10 +9,10 @@ function resolveBackendCandidates(): string[] {
     if (normalized) unique.add(normalized);
   };
   add(process.env.BACKEND_API_BASE_URL);
-  add("http://backend:8000");
-  add("http://host.docker.internal:8000");
-  add("http://localhost:8000");
   add("http://127.0.0.1:8000");
+  add("http://localhost:8000");
+  add("http://host.docker.internal:8000");
+  add("http://backend:8000");
   return Array.from(unique);
 }
 
@@ -75,7 +75,7 @@ export async function proxyAuthPost(request: NextRequest, backendPath: string) {
       if (isRetryableStatus(resp.status)) continue;
       return new NextResponse(await resp.text(), {
         status: resp.status,
-        headers: { "content-type": resp.headers.get("content-type") ?? "application/json" },
+       headers: { "content-type": resp.headers.get("content-type") ?? "application/json" },
       });
     } catch {
       // try next
@@ -88,7 +88,11 @@ export async function proxyAuthPost(request: NextRequest, backendPath: string) {
 export async function proxyPublicGet(backendPath: string) {
   for (const baseUrl of resolveBackendCandidates()) {
     try {
-      const resp = await fetchWithTimeout(`${baseUrl}${backendPath}`, { method: "GET", cache: "no-store" }, FETCH_TIMEOUT_MS);
+      const resp = await fetchWithTimeout(
+        `${baseUrl}${backendPath}`,
+        { method: "GET", cache: "no-store" },
+        FETCH_TIMEOUT_MS,
+      );
       if (isRetryableStatus(resp.status)) continue;
       return new NextResponse(await resp.text(), {
         status: resp.status,
