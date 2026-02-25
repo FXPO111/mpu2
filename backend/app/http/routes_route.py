@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.repo import Repo
 from app.db.session import get_db
-from app.deps import get_current_user
+from app.deps import require_program_access
 from app.domain.models import APIError
 from app.services.route_case import apply_answer, get_next_step
 
@@ -19,7 +19,7 @@ class SetupAnswerIn(BaseModel):
 
 
 @router.get("/bootstrap")
-def bootstrap(user=Depends(get_current_user), db: Session = Depends(get_db)):
+def bootstrap(user=Depends(require_program_access), db: Session = Depends(get_db)):
     repo = Repo(db)
     case = repo.get_or_create_route_case(user.id, topic="unknown")
 
@@ -48,7 +48,7 @@ def bootstrap(user=Depends(get_current_user), db: Session = Depends(get_db)):
 
 
 @router.get("/setup/next")
-def setup_next(user=Depends(get_current_user), db: Session = Depends(get_db)):
+def setup_next(user=Depends(require_program_access), db: Session = Depends(get_db)):
     repo = Repo(db)
     case = repo.get_route_case(user.id)
     if not case:
@@ -70,7 +70,7 @@ def setup_next(user=Depends(get_current_user), db: Session = Depends(get_db)):
 
 
 @router.post("/setup/answer")
-def setup_answer(payload: SetupAnswerIn, user=Depends(get_current_user), db: Session = Depends(get_db)):
+def setup_answer(payload: SetupAnswerIn, user=Depends(require_program_access), db: Session = Depends(get_db)):
     repo = Repo(db)
     case = repo.get_route_case(user.id)
     if not case:

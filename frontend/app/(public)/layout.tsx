@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import AccountMenu from "@/app/_components/AccountMenu";
 
 const MENU = [
   { href: "/#program", label: "Программа" },
@@ -66,6 +67,10 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
                 Тарифы
               </Button>
             </Link>
+          </div>
+
+          <div className="public-account-wrap">
+            <AccountMenu publicMode />
           </div>
         </div>
       </header>
