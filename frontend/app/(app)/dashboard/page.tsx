@@ -327,11 +327,21 @@ export default function DashboardPage() {
       </section>
 
       <nav className="cabinet-v2-nav">
-        <a className={`navlink ${view === "overview" ? "active" : ""}`} href="/dashboard?view=overview">Обзор</a>
-        <a className={`navlink ${view === "route" ? "active" : ""}`} href="/dashboard?view=route">Маршрут</a>
-        <a className={`navlink ${view === "exam" ? "active" : ""}`} href="/dashboard?view=exam">Экзамен</a>
-        <a className={`navlink ${view === "dossier" ? "active" : ""}`} href="/dashboard?view=dossier">Досье</a>
-        <a className={`navlink ${view === "evidence" ? "active" : ""}`} href="/dashboard?view=evidence">Доказательства</a>
+        <a className={`navlink ${view === "overview" ? "active" : ""}`} href="/dashboard?view=overview">
+          Обзор
+        </a>
+        <a className={`navlink ${view === "route" ? "active" : ""}`} href="/dashboard?view=route">
+          Маршрут
+        </a>
+        <a className={`navlink ${view === "exam" ? "active" : ""}`} href="/dashboard?view=exam">
+          Экзамен
+        </a>
+        <a className={`navlink ${view === "dossier" ? "active" : ""}`} href="/dashboard?view=dossier">
+          Досье
+        </a>
+        <a className={`navlink ${view === "evidence" ? "active" : ""}`} href="/dashboard?view=evidence">
+          Доказательства
+        </a>
       </nav>
 
       {view === "overview" ? (
