@@ -70,8 +70,23 @@ function Button({
   onClick?: () => void;
   size?: "sm" | "md";
 }) {
+  const isSmall = size === "sm";
   return (
-    <button className="btn" onClick={onClick} style={size === "sm" ? { padding: "8px 14px" } : undefined}>
+    <button
+      className="btn"
+      onClick={onClick}
+      style={{
+        border: "1px solid rgba(0,0,0,.06)",
+        borderRadius: 16,
+        background: "linear-gradient(180deg, #2bc866 0%, #1fb557 100%)",
+        color: "#fff",
+        fontWeight: 800,
+        letterSpacing: "0.01em",
+        padding: isSmall ? "8px 14px" : "11px 18px",
+        boxShadow: "0 10px 22px rgba(34,197,94,.22)",
+        cursor: "pointer",
+      }}
+    >
       {children}
     </button>
   );
@@ -312,11 +327,21 @@ export default function DashboardPage() {
       </section>
 
       <nav className="cabinet-v2-nav">
-        <a className={`navlink ${view === "overview" ? "active" : ""}`} href="/dashboard?view=overview">Обзор</a>
-        <a className={`navlink ${view === "route" ? "active" : ""}`} href="/dashboard?view=route">Маршрут</a>
-        <a className={`navlink ${view === "exam" ? "active" : ""}`} href="/dashboard?view=exam">Экзамен</a>
-        <a className={`navlink ${view === "dossier" ? "active" : ""}`} href="/dashboard?view=dossier">Досье</a>
-        <a className={`navlink ${view === "evidence" ? "active" : ""}`} href="/dashboard?view=evidence">Доказательства</a>
+        <a className={`navlink ${view === "overview" ? "active" : ""}`} href="/dashboard?view=overview">
+          Обзор
+        </a>
+        <a className={`navlink ${view === "route" ? "active" : ""}`} href="/dashboard?view=route">
+          Маршрут
+        </a>
+        <a className={`navlink ${view === "exam" ? "active" : ""}`} href="/dashboard?view=exam">
+          Экзамен
+        </a>
+        <a className={`navlink ${view === "dossier" ? "active" : ""}`} href="/dashboard?view=dossier">
+          Досье
+        </a>
+        <a className={`navlink ${view === "evidence" ? "active" : ""}`} href="/dashboard?view=evidence">
+          Доказательства
+        </a>
       </nav>
 
       {view === "overview" ? (

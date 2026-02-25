@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export default function AccountMenu() {
+export default function AccountMenu({ compact = false }: { compact?: boolean }) {
   const [me, setMe] = useState<{ email: string } | null>(null);
 
   useEffect(() => {
@@ -18,13 +18,18 @@ export default function AccountMenu() {
     window.location.href = "/";
   };
 
-  if (!me) return <a href="/pricing">Войти</a>;
+  if (!me) return <a className="cabinet-v2-menu-link" href="/pricing">Войти</a>;
+
+  if (compact) {
+    return <span className="cabinet-v2-email">{me.email}</span>;
+  }
+
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-      <span>{me.email}</span>
-      <a href="/dashboard">Кабинет</a>
-      <a href="/">Главная</a>
-      <button onClick={logout}>Выйти</button>
+    <div className="cabinet-v2-menu">
+      <span className="cabinet-v2-email">{me.email}</span>
+      <a className="cabinet-v2-menu-link" href="/dashboard">Кабинет</a>
+      <a className="cabinet-v2-menu-link" href="/">Главная</a>
+      <button className="cabinet-v2-menu-link" onClick={logout}>Выйти</button>
     </div>
   );
 }
