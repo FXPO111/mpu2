@@ -7,6 +7,13 @@ type PlanKey = "start" | "pro" | "intensive";
 type Product = { id: string; code: string; price_cents: number; currency: string; type: string };
 type Me = { id: string; email: string } | null;
 
+const BACKEND_CANDIDATES = [
+  "http://backend:8000",
+  "http://host.docker.internal:8000",
+  "http://localhost:8000",
+  "http://127.0.0.1:8000",
+];
+
 const FALLBACK_PLANS: Product[] = [
   { id: "fallback-start", code: "PLAN_START", price_cents: 23000, currency: "EUR", type: "program" },
   { id: "fallback-pro", code: "PLAN_PRO", price_cents: 70000, currency: "EUR", type: "program" },
@@ -15,6 +22,27 @@ const FALLBACK_PLANS: Product[] = [
 
 function isValidUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+async function loadProductsFromAnySource(): Promise<Product[] | null> {
+  const proxyResp = await fetch("/api/public/products", { cache: "no-store" }).catch(() => null);
+  if (proxyResp?.ok) {
+    const json = await proxyResp.json().catch(() => null);
+    const rows = (json?.data ?? []) as Product[];
+    const plans = rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code));
+    if (plans.length) return plans;
+  }
+
+  for (const baseUrl of BACKEND_CANDIDATES) {
+    const resp = await fetch(`${baseUrl}/api/public/products`, { cache: "no-store" }).catch(() => null);
+    if (!resp?.ok) continue;
+    const json = await resp.json().catch(() => null);
+    const rows = (json?.data ?? []) as Product[];
+    const plans = rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code));
+    if (plans.length) return plans;
+  }
+
+  return null;
 }
 
 function planFromCode(code: string): PlanKey | null {
@@ -38,12 +66,9 @@ export default function PricingPage() {
 
   useEffect(() => {
     const loadProducts = async () => {
-      const resp = await fetch("/api/public/products", { cache: "no-store" }).catch(() => null);
-      if (resp?.ok) {
-        const json = await resp.json().catch(() => null);
-        const rows = (json?.data ?? []) as Product[];
-        const plans = rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code));
-        setProducts(plans.length ? plans : FALLBACK_PLANS);
+      const plans = await loadProductsFromAnySource();
+      if (plans?.length) {
+        setProducts(plans);
         return;
       }
 
@@ -72,7 +97,6 @@ export default function PricingPage() {
       body: JSON.stringify({ product_id: productId }),
     });
     const json = await res.json().catch(() => ({} as any));
-
     if (!res.ok) {
       if (res.status === 401) {
         setShowAuth(true);
@@ -82,12 +106,10 @@ export default function PricingPage() {
       }
       return false;
     }
-
     if (json?.data?.checkout_url) {
       window.location.href = json.data.checkout_url;
       return true;
     }
-
     setError("Сервер не вернул ссылку на оплату");
     return false;
   }
@@ -105,9 +127,24 @@ export default function PricingPage() {
     return false;
   }
 
+  async function resolveCheckoutProductId(productId: string): Promise<string | null> {
+    if (isValidUuid(productId)) return productId;
+
+    const current = products.find((p) => p.id === productId);
+    const refreshed = await loadProductsFromAnySource();
+    if (refreshed?.length) {
+      setProducts(refreshed);
+      const byCode = refreshed.find((p) => p.code === current?.code);
+      if (byCode?.id && isValidUuid(byCode.id)) return byCode.id;
+    }
+
+    return null;
+  }
+
   async function onBuy(productId: string) {
-    if (!isValidUuid(productId)) {
-      setError("Тарифы не синхронизированы с сервером. Обновите страницу и попробуйте снова.");
+    const checkoutProductId = await resolveCheckoutProductId(productId);
+    if (!checkoutProductId) {
+      setError("Не удалось получить ID тарифа с сервера. Проверьте backend и обновите страницу.");
       return;
     }
 
@@ -128,7 +165,7 @@ export default function PricingPage() {
       return;
     }
 
-    await runCheckout(productId);
+    await runCheckout(checkoutProductId);
   }
 
   async function submitAuth() {
@@ -170,13 +207,11 @@ export default function PricingPage() {
       if (!res.ok) {
         const json = await res.json().catch(() => ({} as any));
         const detail = Array.isArray(json?.detail) ? json.detail[0]?.msg : null;
-
         if (mode === "register" && res.status === 409) {
           setMode("login");
           setAuthError("Этот email уже зарегистрирован. Войдите с паролем.");
           return;
         }
-
         setAuthError(json?.error?.message ?? detail ?? "Auth error");
         return;
       }
@@ -188,7 +223,13 @@ export default function PricingPage() {
       }
 
       if (pendingProductId) {
-        const started = await runCheckout(pendingProductId);
+        const checkoutProductId = await resolveCheckoutProductId(pendingProductId);
+        if (!checkoutProductId) {
+          setError("Не удалось получить ID тарифа с сервера. Проверьте backend и обновите страницу.");
+          return;
+        }
+
+        const started = await runCheckout(checkoutProductId);
         if (!started) return;
       }
 
