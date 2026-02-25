@@ -21,7 +21,13 @@ export default function AccountMenu({ compact = false, publicMode = false }: { c
   if (!me) return <a className="cabinet-v2-menu-link" href="/pricing">Войти</a>;
 
   if (compact) {
-    return <span className="cabinet-v2-email">{me.email}</span>;
+    return (
+      <div className="cabinet-v2-menu">
+        <span className="cabinet-v2-email">{me.email}</span>
+        <a className="cabinet-v2-menu-link" href="/">Главная</a>
+        <button className="cabinet-v2-menu-link" onClick={logout}>Выйти</button>
+      </div>
+    );
   }
 
   if (publicMode) {
@@ -44,3 +50,4 @@ export default function AccountMenu({ compact = false, publicMode = false }: { c
     </div>
   );
 }
+

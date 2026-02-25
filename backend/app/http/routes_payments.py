@@ -179,4 +179,3 @@ def payments_confirm(payload: CheckoutConfirmIn, user=Depends(get_current_user),
 
     program_active = repo.has_active_entitlement(user.id, "program_access")
     return {"data": {"program_active": program_active}}
-

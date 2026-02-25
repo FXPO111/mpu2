@@ -1190,6 +1190,32 @@ body{
   cursor: pointer;
 }
 
+.public-account-wrap{
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.public-account-menu{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #243a31;
+}
+
+.public-account-email{
+  font-size: 14px;
+}
+
+.public-account-link{
+  border: 0;
+  background: transparent;
+  color: #243a31;
+  padding: 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+
 .footer-links{
   display: grid;
   gap: 8px;
@@ -2787,6 +2813,10 @@ body:has(.diagnostic-page) .header-actions a[href="/diagnostic"]{
   padding-top: 18px;
 }
 
+.cabinet-v2-page {
+  padding-top: 18px;
+}
+
 .cabinet-v2-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: #163128; }
 .cabinet-v2-dot { width: 10px; height: 10px; border-radius: 50%; background: #24a866; }
 .cabinet-v2-nav { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -2794,7 +2824,6 @@ body:has(.diagnostic-page) .header-actions a[href="/diagnostic"]{
   justify-content: center;
   width: 100%;
 }
-
 .cabinet-v2-email {
   max-width: 220px;
   white-space: nowrap;
@@ -2806,6 +2835,30 @@ body:has(.diagnostic-page) .header-actions a[href="/diagnostic"]{
   padding: 8px 12px;
   background: #ffffff;
   color: #2c473d;
+}
+
+.cabinet-v2-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cabinet-v2-menu-link {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid #d6e2dd;
+  border-radius: 999px;
+  color: #2e483f;
+  background: #f7faf8;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+button.cabinet-v2-menu-link {
+  cursor: pointer;
 }
 
 .cabinet-v2-menu {
