@@ -57,6 +57,7 @@ export async function proxyAuthGet(request: NextRequest, backendPath: string) {
 export async function proxyAuthPost(request: NextRequest, backendPath: string) {
   const token = request.cookies.get("mpu_token")?.value;
   if (!token) return NextResponse.json({ error: { message: "Not logged in" } }, { status: 401 });
+
   const payload = await request.json();
 
   for (const baseUrl of resolveBackendCandidates()) {

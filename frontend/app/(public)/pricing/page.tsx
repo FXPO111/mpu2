@@ -161,6 +161,7 @@ export default function PricingPage() {
         ? { email, password }
         : { email, password, name: name || email.split("@")[0] };
       const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+
       if (!res.ok) {
         const json = await res.json().catch(() => ({} as any));
         const detail = Array.isArray(json?.detail) ? json.detail[0]?.msg : null;
