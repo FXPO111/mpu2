@@ -5,14 +5,8 @@ import { useSearchParams } from "next/navigation";
 
 type PlanKey = "start" | "pro" | "intensive";
 type Product = { id: string; code: string; price_cents: number; currency: string; type: string };
-type Me = { id: string; email: string } | null;
 
-const BACKEND_CANDIDATES = [
-  "http://backend:8000",
-  "http://host.docker.internal:8000",
-  "http://localhost:8000",
-  "http://127.0.0.1:8000",
-];
+type Me = { id: string; email: string } | null;
 
 const FALLBACK_PLANS: Product[] = [
   { id: "fallback-start", code: "PLAN_START", price_cents: 23000, currency: "EUR", type: "program" },
@@ -25,18 +19,9 @@ function isValidUuid(value: string): boolean {
 }
 
 async function loadProductsFromAnySource(): Promise<Product[] | null> {
-  const proxyResp = await fetch("/api/public/products", { cache: "no-store" }).catch(() => null);
+  const proxyResp = await fetch("/api/client/products", { cache: "no-store" }).catch(() => null);
   if (proxyResp?.ok) {
     const json = await proxyResp.json().catch(() => null);
-    const rows = (json?.data ?? []) as Product[];
-    const plans = rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code));
-    if (plans.length) return plans;
-  }
-
-  for (const baseUrl of BACKEND_CANDIDATES) {
-    const resp = await fetch(`${baseUrl}/api/public/products`, { cache: "no-store" }).catch(() => null);
-    if (!resp?.ok) continue;
-    const json = await resp.json().catch(() => null);
     const rows = (json?.data ?? []) as Product[];
     const plans = rows.filter((p) => p.type === "program" && ["PLAN_START", "PLAN_PRO", "PLAN_INTENSIVE"].includes(p.code));
     if (plans.length) return plans;
@@ -193,16 +178,8 @@ export default function PricingPage() {
 
     try {
       const path = mode === "login" ? "/api/client/login" : "/api/client/register";
-      const payload =
-        mode === "login"
-          ? { email, password }
-          : { email, password, name: name || email.split("@")[0] };
-
-      const res = await fetch(path, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const payload = mode === "login" ? { email, password } : { email, password, name: name || email.split("@")[0] };
+      const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({} as any));
@@ -249,7 +226,9 @@ export default function PricingPage() {
         {sorted.map((p) => (
           <div key={p.id} style={{ border: "1px solid #ddd", padding: 12 }}>
             <h3>{planFromCode(p.code)?.toUpperCase() ?? p.code}</h3>
-            <p>{(p.price_cents / 100).toFixed(0)} {p.currency}</p>
+            <p>
+              {(p.price_cents / 100).toFixed(0)} {p.currency}
+            </p>
             <button onClick={() => onBuy(p.id)}>Выбрать и оплатить</button>
           </div>
         ))}
@@ -263,10 +242,7 @@ export default function PricingPage() {
             setShowAuth(false);
           }}
         >
-          <div
-            style={{ background: "#fff", padding: 16, width: 360, borderRadius: 12 }}
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div style={{ background: "#fff", padding: 16, width: 360, borderRadius: 12 }} onClick={(e) => e.stopPropagation()}>
             <h3>{mode === "login" ? "Войти" : "Регистрация"}</h3>
             {authError ? <p style={{ color: "#b42318" }}>{authError}</p> : null}
 
@@ -312,7 +288,9 @@ export default function PricingPage() {
               >
                 {mode === "login" ? "Нет аккаунта" : "Уже есть аккаунт"}
               </button>
-              <button onClick={() => setShowAuth(false)} disabled={authLoading}>Закрыть</button>
+              <button onClick={() => setShowAuth(false)} disabled={authLoading}>
+                Закрыть
+              </button>
             </div>
           </div>
         </div>

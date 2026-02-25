@@ -27,7 +27,7 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 }
 
 function isRetryableStatus(status: number): boolean {
-  return status === 404 || status === 502 || status === 503 || status === 504;
+  return status === 404 || status === 405 || status === 502 || status === 503 || status === 504;
 }
 
 export async function proxyAuthGet(request: NextRequest, backendPath: string) {
@@ -57,6 +57,7 @@ export async function proxyAuthGet(request: NextRequest, backendPath: string) {
 export async function proxyAuthPost(request: NextRequest, backendPath: string) {
   const token = request.cookies.get("mpu_token")?.value;
   if (!token) return NextResponse.json({ error: { message: "Not logged in" } }, { status: 401 });
+
   const payload = await request.json();
 
   for (const baseUrl of resolveBackendCandidates()) {
@@ -91,7 +92,7 @@ export async function proxyPublicGet(backendPath: string) {
       if (isRetryableStatus(resp.status)) continue;
       return new NextResponse(await resp.text(), {
         status: resp.status,
-        headers: { "content-type": resp.headers.get("content-type") ?? "application/json" },
+       headers: { "content-type": resp.headers.get("content-type") ?? "application/json" },
       });
     } catch {
       // try next
