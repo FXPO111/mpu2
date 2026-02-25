@@ -43,13 +43,11 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
             <a href="mailto:info@mpu-praxis-dp.de">info@mpu-praxis-dp.de</a>
           </div>
         </div>
-
         <div className="container public-header-inner public-header-inner-polished">
           <Link href="/" className="brand">
             <span className="brand-dot" />
             MPU Praxis DP
           </Link>
-
           <nav className="nav public-nav-polished" aria-label="Основная навигация">
             {MENU.map((item) => (
               <Link key={item.href} href={item.href} className="navlink">
@@ -57,14 +55,12 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
-
           <div className="public-header-controls public-header-controls-polished">
             <div className="header-actions header-actions-polished">
               <Link href="/diagnostic">
                 <Button size="sm">Начать диагностику</Button>
               </Link>
             </div>
-
             <div className="public-account-wrap public-account-wrap-polished">
               <AccountMenu publicMode />
             </div>
@@ -111,7 +107,6 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
 
         <div className="footer-bottom">© {new Date().getFullYear()} MPU Praxis DP</div>
       </footer>
-
       <style jsx>{`
         .public-topstrip-inner {
           gap: 20px;
@@ -216,3 +211,4 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
     </>
   );
 }
+

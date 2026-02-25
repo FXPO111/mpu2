@@ -49,3 +49,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Data backfill is intentionally non-destructive on downgrade.
     return
+
