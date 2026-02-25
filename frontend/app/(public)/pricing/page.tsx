@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 
 type PlanKey = "start" | "pro" | "intensive";
 type Product = { id: string; code: string; price_cents: number; currency: string; type: string };
-type Me = { id: string; email: string } | null;
 
 const FALLBACK_PLANS: Product[] = [
   { id: "fallback-start", code: "PLAN_START", price_cents: 23000, currency: "EUR", type: "program" },
@@ -39,7 +38,6 @@ function planFromCode(code: string): PlanKey | null {
 export default function PricingPage() {
   const params = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
-  const [me, setMe] = useState<Me>(null);
   const [showAuth, setShowAuth] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [pendingProductId, setPendingProductId] = useState<string | null>(null);
@@ -98,14 +96,10 @@ export default function PricingPage() {
     return false;
   }
 
-  async function ensureSessionReady(): Promise<boolean> {
-    for (let i = 0; i < 5; i += 1) {
-      const meRes = await fetch("/api/client/me", { cache: "no-store" }).catch(() => null);
-      if (meRes?.ok) {
-        const meJson = await meRes.json().catch(() => null);
-        setMe(meJson?.data ?? null);
-        return true;
-      }
+  async function tryCheckoutWithRetry(productId: string, attempts = 3): Promise<boolean> {
+    for (let i = 0; i < attempts; i += 1) {
+      const started = await runCheckout(productId);
+      if (started) return true;
       await new Promise((r) => setTimeout(r, 250));
     }
     return false;
@@ -132,23 +126,12 @@ export default function PricingPage() {
       return;
     }
 
-    let effectiveUser = me;
-    if (!effectiveUser) {
-      const meRes = await fetch("/api/client/me", { cache: "no-store" }).catch(() => null);
-      if (meRes?.ok) {
-        const meJson = await meRes.json().catch(() => null);
-        effectiveUser = meJson?.data ?? null;
-        setMe(effectiveUser);
-      }
-    }
+    const started = await runCheckout(checkoutProductId);
+    if (started) return;
 
-    if (!effectiveUser) {
-      setPendingProductId(productId);
-      setAuthError(null);
-      setShowAuth(true);
-      return;
-    }
-    await runCheckout(checkoutProductId);
+    setPendingProductId(productId);
+    setAuthError(null);
+    setShowAuth(true);
   }
 
   async function submitAuth() {
@@ -190,13 +173,6 @@ export default function PricingPage() {
         return;
       }
 
-      // Не блокируем UX повторным /me: cookie уже выставлен в proxy login/register.
-      const isSessionReady = await ensureSessionReady();
-      if (!isSessionReady) {
-        setAuthError("Логин не подтвердился. Попробуйте ещё раз.");
-        return;
-      }
-
       if (pendingProductId) {
         const checkoutProductId = await resolveCheckoutProductId(pendingProductId);
         if (!checkoutProductId) {
@@ -204,8 +180,11 @@ export default function PricingPage() {
           return;
         }
 
-        const started = await runCheckout(checkoutProductId);
-        if (!started) return;
+        const started = await tryCheckoutWithRetry(checkoutProductId, 3);
+        if (!started) {
+          setAuthError("Не удалось перейти к оплате. Проверьте данные и попробуйте снова.");
+          return;
+        }
       }
 
       setShowAuth(false);

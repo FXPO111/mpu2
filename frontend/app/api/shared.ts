@@ -27,7 +27,7 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 }
 
 function isRetryableStatus(status: number): boolean {
-  return status === 404 || status === 502 || status === 503 || status === 504;
+  return status === 404 || status === 405 || status === 502 || status === 503 || status === 504;
 }
 
 export async function proxyAuthGet(request: NextRequest, backendPath: string) {
