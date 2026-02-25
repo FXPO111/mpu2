@@ -61,7 +61,12 @@ export async function POST(request: NextRequest) {
       if (!token) return NextResponse.json({ error: { message: "No access_token in response" } }, { status: 502 });
 
       const res = NextResponse.json({ data: { ok: true } }, { status: 200 });
-      res.cookies.set("mpu_token", String(token), { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" });
+      res.cookies.set("mpu_token", String(token), {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      });
       return res;
     } catch {
       // try next
