@@ -57,7 +57,6 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
-
           <div className="public-header-controls">
             <div className="header-actions">
               <Link href="/diagnostic">
@@ -119,3 +118,4 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
     </>
   );
 }
+

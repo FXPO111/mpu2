@@ -17,14 +17,12 @@ export default function AccountMenu({ compact = false, publicMode = false }: { c
     await fetch("/api/client/logout", { method: "POST" });
     window.location.href = "/";
   };
-
   if (!me) {
     if (publicMode) {
       return <a className="public-account-login" href="/login">Войти</a>;
     }
     return <a className="cabinet-v2-menu-link" href="/login">Войти</a>;
   }
-
   if (compact) {
     return (
       <div className="cabinet-v2-menu">
@@ -55,3 +53,4 @@ export default function AccountMenu({ compact = false, publicMode = false }: { c
     </div>
   );
 }
+
